@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Registro de Comida - PostgreSQL</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Tone.js para sonidos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <!-- QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- Estilos personalizados -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="bg-gray-100">
+
+    <!-- Botón selector de comedor -->
+    <button id="show-comedor-selector-button"
+        class="fixed top-4 left-4 p-3 pr-5 bg-white text-gray-800 rounded-full shadow-lg hover:bg-gray-200 transition-colors z-30 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+        <span id="active-comedor-name" class="font-bold text-sm">Cargando...</span>
+    </button>
+
+    <!-- Botón Admin -->
+    <button id="show-admin-login-button"
+        class="fixed top-4 right-4 p-3 pr-5 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors z-30 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 7a2 2 0 012 2v2a2 2 0 01-2 2m-4 0h-2M9 13H7m0 0h-2m2 0a2 2 0 01-2-2v-2a2 2 0 012-2m-4 4h10" />
+        </svg>
+        <span class="font-bold text-sm">Admin</span>
+    </button>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-[200] flex items-center justify-center">
+        <div class="text-xl font-bold text-gray-700">Cargando sistema...</div>
+    </div>
+
+    <!-- PÁGINA PRINCIPAL: REGISTRO -->
+    <div id="main-page" class="page-container flex items-center justify-center p-4 min-h-screen">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+            <img src="https://i.imgur.com/4SmaZVt.png" crossorigin="anonymous" alt="Logo"
+                class="mx-auto h-36 w-auto mb-6">
+            <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">Registro de Comida</h1>
+            <p class="text-center text-gray-500 mb-6">Busque por nombre o número de empleado</p>
+
+            <div class="mb-4 relative text-left">
+                <label for="employeeSearch" class="block text-gray-700 text-sm font-bold mb-2">Buscar Empleado:</label>
+                <div id="search-results-container"
+                    class="absolute bottom-full left-0 right-0 bg-white border mb-1 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto hidden">
+                </div>
+                <input type="text" id="employeeSearch"
+                    class="shadow-inner appearance-none border-2 border-gray-200 rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ej: Juan Perez o 12345" autocomplete="off">
+            </div>
+
+            <button id="submitButton"
+                class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transform hover:scale-105 transition-transform duration-200">Aceptar</button>
+        </div>
+    </div>
+
+    <!-- PÁGINA ADMIN -->
+    <div id="admin-dashboard-page"
+        class="page-container hidden container mx-auto p-4 space-y-8 mt-24 md:mt-16 lg:mt-12">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Panel de Administración</h1>
+            <button id="back-to-main-button"
+                class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cerrar</button>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow-lg flex items-center justify-between">
+            <label for="admin-comedor-selector" class="font-bold text-gray-600 mr-2">Comedor Activo:</label>
+            <select id="admin-comedor-selector" class="p-2 border-2 border-gray-200 rounded-lg flex-grow"></select>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex flex-wrap border-b border-gray-200">
+            <button data-admin-page="gestion"
+                class="admin-nav-button py-2 px-4 font-semibold text-blue-600 border-b-2 border-blue-600">Gestión de
+                Empleados</button>
+            <button data-admin-page="consumos"
+                class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Consumos</button>
+        </div>
+
+        <!-- Contenido Admin -->
+        <div id="admin-content-container">
+            <!-- Gestión de Empleados -->
+            <div id="admin-gestion-page">
+                <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                    <h2 class="text-xl font-bold text-gray-700 mb-4">Gestionar Empleados</h2>
+
+                    <div class="grid md:grid-cols-3 gap-4 mb-6">
+                        <input type="number" id="new-employee-id" placeholder="Número (Opcional)"
+                            class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="new-employee-name" placeholder="Nombre Completo"
+                            class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="add-employee-button"
+                            class="md:col-span-1 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Agregar
+                            Empleado</button>
+                    </div>
+
+                    <div class="mb-4">
+                        <input type="text" id="admin-employee-search" placeholder="Buscar empleado..."
+                            class="w-full p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div id="admin-table-container" class="overflow-x-auto"></div>
+                </div>
+            </div>
+
+            <!-- Consumos -->
+            <div id="admin-consumos-page" class="hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-bold text-gray-700 mb-4">Consumos de la Semana Actual</h2>
+                    <div id="current-log-table-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales -->
+    <div id="confirmation-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="admin-password-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="comedor-selector-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="fullscreen-message-container"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center text-white text-center transition-opacity duration-300">
+    </div>
+
+    <!-- JavaScript Refactorizado -->
+    <script type="module">
+        // ============================================================================
+        // CONFIGURACIÓN
+        // ============================================================================
+        const API_URL = 'http://localhost:3000/api';
+        const ADMIN_PASSWORD = '1560';
+
+        let appState = {
+            comedores: [],
+            activeComedorId: null,
+            empleados: [],
+            consumos: []
+        };
+
+        let audioStarted = false;
+        let currentAdminPage = 'gestion';
+
+        // ============================================================================
+        // API
+        // ============================================================================
+        async function apiRequest(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_URL}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `HTTP ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                showFullscreenMessage(false, 'Error de Conexión', error.message);
+                throw error;
+            }
+        }
+
+        // ============================================================================
+        // CARGA DE DATOS
+        // ============================================================================
+        async function loadAllData() {
+            try {
+                // Cargar comedores
+                appState.comedores = await apiRequest('/comedores');
+
+                // Si no hay comedor activo, usar el primero
+                if (!appState.activeComedorId && appState.comedores.length > 0) {
+                    appState.activeComedorId = appState.comedores[0].comedor_id;
+                }
+
+                // Cargar empleados del comedor activo
+                if (appState.activeComedorId) {
+                    appState.empleados = await apiRequest(`/empleados?comedor_id=${appState.activeComedorId}`);
+                }
+
+                renderAll();
+            } catch (error) {
+                console.error('Error cargando datos:', error);
+            }
+        }
+
+        // ============================================================================
+        // RENDERIZADO
+        // ============================================================================
+        function renderAll() {
+            renderComedorSelector();
+            renderAdminTable();
+            updateActiveComedorName();
+        }
+
+        function renderComedorSelector() {
+            const selector = document.getElementById('admin-comedor-selector');
+            if (!selector) return;
+
+            selector.innerHTML = appState.comedores.map(c =>
+                `<option value="${c.comedor_id}" ${c.comedor_id === appState.activeComedorId ? 'selected' : ''}>
+                    ${c.comedor_nombre}
+                </option>`
+            ).join('');
+        }
+
+        function renderAdminTable(searchTerm = '') {
+            const container = document.getElementById('admin-table-container');
+            if (!container) return;
+
+            const filtered = appState.empleados.filter(e =>
+                !searchTerm ||
+                e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (e.number && e.number.includes(searchTerm))
+            );
+
+            container.innerHTML = `
+                <table class="min-w-full bg-white">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Nombre</th>
+                            <th class="px-4 py-2 text-left">Número</th>
+                            <th class="px-4 py-2 text-left">Tipo</th>
+                            <th class="px-4 py-2 text-left">PIN</th>
+                            <th class="px-4 py-2 text-left">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filtered.map(emp => `
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-2">${emp.name}</td>
+                                <td class="px-4 py-2">${emp.number || '-'}</td>
+                                <td class="px-4 py-2">${emp.type || '-'}</td>
+                                <td class="px-4 py-2">${emp.pin ? '✓' : '✗'}</td>
+                                <td class="px-4 py-2">
+                                    <button onclick="deleteEmployee('${emp.internal_id}')" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+                                        Eliminar
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function updateActiveComedorName() {
+            const nameSpan = document.getElementById('active-comedor-name');
+            if (!nameSpan) return;
+
+            const activeComedor = appState.comedores.find(c => c.comedor_id === appState.activeComedorId);
+            nameSpan.textContent = activeComedor ? activeComedor.comedor_nombre : 'Sin comedor';
+        }
+
+        // ============================================================================
+        // ACCIONES
+        // ============================================================================
+        async function registerConsumption(employeeId) {
+            try {
+                await apiRequest('/consumos', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        employee_id: employeeId,
+                        comedor_id: appState.activeComedorId,
+                        consumption_date: new Date().toISOString().split('T')[0]
+                    })
+                });
+
+                showFullscreenMessage(true, '¡Validado!', 'Consumo registrado exitosamente');
+                setTimeout(() => {
+                    document.getElementById('employeeSearch').value = '';
+                    document.getElementById('search-results-container').classList.add('hidden');
+                }, 2000);
+
+            } catch (error) {
+                showFullscreenMessage(false, 'Error', error.message);
+            }
+        }
+
+        window.deleteEmployee = async function (employeeId) {
+            if (!confirm('¿Estás seguro de eliminar este empleado?')) return;
+
+            try {
+                await apiRequest(`/empleados/${employeeId}`, { method: 'DELETE' });
+                await loadAllData();
+                showFullscreenMessage(true, 'Éxito', 'Empleado eliminado');
+            } catch (error) {
+                showFullscreenMessage(false, 'Error', error.message);
+            }
+        };
+
+        // ============================================================================
+        // UTILIDADES
+        // ============================================================================
+        function showFullscreenMessage(isSuccess, title, message) {
+            const container = document.getElementById('fullscreen-message-container');
+            container.className = `fixed inset-0 z-[100] flex items-center justify-center text-white text-center transition-opacity duration-300 ${isSuccess ? 'bg-green-500' : 'bg-red-600'}`;
+            container.innerHTML = `
+                <div class="flex flex-col items-center p-4">
+                    <h2 class="text-4xl font-bold mb-4">${title}</h2>
+                    <p class="text-xl">${message}</p>
+                </div>
+            `;
+            container.classList.remove('hidden');
+            setTimeout(() => container.classList.add('hidden'), 3000);
+        }
+
+        function switchPage(pageId) {
+            document.querySelectorAll('.page-container').forEach(p => p.classList.add('hidden'));
+            document.getElementById(pageId)?.classList.remove('hidden');
+        }
+
+        // ============================================================================
+        // EVENT LISTENERS
+        // ============================================================================
+        document.getElementById('show-admin-login-button')?.addEventListener('click', () => {
+            const password = prompt('Ingrese la contraseña de administrador:');
+            if (password === ADMIN_PASSWORD) {
+                switchPage('admin-dashboard-page');
+                loadAllData();
+            } else if (password) {
+                alert('Contraseña incorrecta');
+            }
+        });
+
+        document.getElementById('back-to-main-button')?.addEventListener('click', () => {
+            switchPage('main-page');
+        });
+
+        document.getElementById('admin-comedor-selector')?.addEventListener('change', async (e) => {
+            appState.activeComedorId = e.target.value;
+            await loadAllData();
+        });
+
+        document.getElementById('add-employee-button')?.addEventListener('click', async () => {
+            const number = document.getElementById('new-employee-id').value;
+            const name = document.getElementById('new-employee-name').value;
+
+            if (!name) {
+                alert('El nombre es obligatorio');
+                return;
+            }
+
+            try {
+                await apiRequest('/empleados', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        internal_id: crypto.randomUUID(),
+                        comedor_id: appState.activeComedorId,
+                        name: name,
+                        number: number || null
+                    })
+                });
+
+                document.getElementById('new-employee-id').value = '';
+                document.getElementById('new-employee-name').value = '';
+                await loadAllData();
+                showFullscreenMessage(true, 'Éxito', 'Empleado agregado');
+            } catch (error) {
+                showFullscreenMessage(false, 'Error', error.message);
+            }
+        });
+
+        document.getElementById('admin-employee-search')?.addEventListener('input', (e) => {
+            renderAdminTable(e.target.value);
+        });
+
+        document.getElementById('employeeSearch')?.addEventListener('input', async (e) => {
+            const searchTerm = e.target.value.trim();
+            const resultsContainer = document.getElementById('search-results-container');
+
+            if (searchTerm.length < 2) {
+                resultsContainer.classList.add('hidden');
+                return;
+            }
+
+            const filtered = appState.empleados.filter(emp =>
+                emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (emp.number && emp.number.includes(searchTerm))
+            );
+
+            if (filtered.length > 0) {
+                resultsContainer.innerHTML = filtered.map(emp => `
+                    <div class="p-3 hover:bg-gray-100 cursor-pointer border-b" onclick="selectEmployee('${emp.internal_id}')">
+                        <div class="font-bold">${emp.name}</div>
+                        <div class="text-sm text-gray-600">${emp.number || 'Sin número'}</div>
+                    </div>
+                `).join('');
+                resultsContainer.classList.remove('hidden');
+            } else {
+                resultsContainer.classList.add('hidden');
+            }
+        });
+
+        window.selectEmployee = function (employeeId) {
+            const employee = appState.empleados.find(e => e.internal_id === employeeId);
+            if (employee) {
+                registerConsumption(employeeId);
+            }
+        };
+
+        // Tabs de admin
+        document.querySelectorAll('.admin-nav-button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const page = e.target.dataset.adminPage;
+                currentAdminPage = page;
+
+                // Actualizar tabs
+                document.querySelectorAll('.admin-nav-button').forEach(b => {
+                    b.classList.remove('text-blue-600', 'border-blue-600');
+                    b.classList.add('text-gray-500');
+                });
+                e.target.classList.add('text-blue-600', 'border-blue-600');
+                e.target.classList.remove('text-gray-500');
+
+                // Mostrar página
+                document.querySelectorAll('[id$="-page"]').forEach(p => p.classList.add('hidden'));
+                document.getElementById(`admin-${page}-page`)?.classList.remove('hidden');
+            });
+        });
+
+        // ============================================================================
+        // INICIALIZACIÓN
+        // ============================================================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('🚀 Sistema de Comedor - PostgreSQL');
+            console.log('📡 API:', API_URL);
+
+            await loadAllData();
+
+            document.getElementById('loading-overlay').style.display = 'none';
+            switchPage('main-page');
+
+            // Auto-refresh cada 10 segundos
+            setInterval(loadAllData, 10000);
+        });
+    </script>
+</body>
+
+</html>
