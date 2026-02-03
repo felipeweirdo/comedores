@@ -1,0 +1,2207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Registro de Comida</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carga de Tone.js para los sonidos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <!-- Carga de QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Carga de html2canvas para exportar a imagen -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Carga de JSZip para comprimir los archivos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        /* Fuente personalizada */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .modal-enter, .page-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active, .page-enter-active { opacity: 1; transform: scale(1); transition: opacity 300ms, transform 300ms; }
+        .modal-exit-active { opacity: 0; transform: scale(0.95); transition: opacity 300ms, transform 300ms; }
+        input[type='number']::-webkit-outer-spin-button, input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type='number'] { -moz-appearance: textfield; }
+        select:disabled {
+            background-color: #f3f4f6; /* bg-gray-100 */
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    
+    <!-- Botón flotante para el selector de comedor -->
+    <button id="show-comedor-selector-button" class="fixed top-4 left-4 p-3 pr-5 bg-white text-gray-800 rounded-full shadow-lg hover:bg-gray-200 transition-colors z-30 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+        <span id="active-comedor-name" class="font-bold text-sm">Cargando...</span>
+    </button>
+    
+    <!-- Botón flotante para el acceso al panel de administración -->
+    <button id="show-admin-login-button" class="fixed top-4 right-4 p-3 pr-5 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors z-30 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2v2a2 2 0 01-2 2m-4 0h-2M9 13H7m0 0h-2m2 0a2 2 0 01-2-2v-2a2 2 0 012-2m-4 4h10" />
+        </svg>
+        <span class="font-bold text-sm">Admin</span>
+    </button>
+
+    <!-- Indicador de Carga Inicial -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-[200] flex items-center justify-center">
+        <div class="text-xl font-bold text-gray-700">Cargando sistema...</div>
+    </div>
+
+    <div id="main-content-container">
+
+    <!-- PÁGINA 1: REGISTRO PRINCIPAL -->
+    <div id="main-page" class="page-container flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+            <img src="https://i.imgur.com/4SmaZVt.png" crossorigin="anonymous" alt="Logo de la Compañía" class="mx-auto h-36 w-auto mb-6">
+            <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">Registro de Comida</h1>
+            <p class="text-center text-gray-500 mb-6">Escanee el código QR o busque por nombre/número.</p>
+            
+            <div class="mb-4 relative text-left">
+                <label for="employeeSearch" class="block text-gray-700 text-sm font-bold mb-2">Buscar Empleado:</label>
+                <div id="search-results-container" class="absolute bottom-full left-0 right-0 bg-white border mb-1 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto hidden"></div>
+                <input type="text" id="employeeSearch" class="shadow-inner appearance-none border-2 border-gray-200 rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej: Juan Perez o 12345" autocomplete="off">
+            </div>
+
+            <button id="submitButton" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transform hover:scale-105 transition-transform duration-200">Aceptar</button>
+        </div>
+    </div>
+
+    <!-- PÁGINA 2: PANEL DE ADMINISTRADOR CON TODAS LAS FUNCIONES -->
+    <div id="admin-dashboard-page" class="page-container hidden container mx-auto p-4 space-y-8 mt-24 md:mt-16 lg:mt-12">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Panel de Administración</h1>
+            <button id="back-to-main-button" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cerrar</button>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow-lg flex items-center justify-between">
+            <label for="admin-comedor-selector" class="font-bold text-gray-600 mr-2">Comedor Activo:</label>
+            <select id="admin-comedor-selector" class="p-2 border-2 border-gray-200 rounded-lg flex-grow"></select>
+        </div>
+
+        <!-- Pestañas de Navegación del Administrador -->
+        <div class="flex flex-wrap border-b border-gray-200">
+            <button data-admin-page="gestion" class="admin-nav-button py-2 px-4 font-semibold text-blue-600 border-b-2 border-blue-600">Gestión de Empleados</button>
+            <button data-admin-page="consumos" class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Consumos</button>
+            <button data-admin-page="historial" class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Historial</button>
+            <button data-admin-page="inactivos" class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Inactivos</button>
+            <button data-admin-page="dispositivos" class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Dispositivos</button>
+        </div>
+        
+        <!-- Contenedor para las páginas del admin -->
+        <div id="admin-content-container">
+            <!-- Contenido de Gestión de Empleados -->
+            <div id="admin-gestion-page">
+                <!-- GESTIÓN DE COMEDORES -->
+                <div id="comedores-management-container" class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                    <h2 class="text-xl font-bold text-gray-700 mb-4">Gestionar Comedores</h2>
+                    <div id="comedores-list" class="space-y-2 mb-4"></div>
+                    <div class="flex gap-4">
+                        <input type="text" id="new-comedor-name" placeholder="Nombre del Nuevo Comedor" class="flex-grow p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="add-comedor-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg">Crear</button>
+                    </div>
+                </div>
+                <!-- GESTIÓN DE EMPLEADOS -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-700">Gestionar Empleados de <span id="current-comedor-name" class="text-blue-600"></span></h2>
+                        <button id="generate-bulk-badges-button" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hidden">Generar Gafetes Seleccionados</button>
+                    </div>
+                    
+                    <!-- NUEVO: Toggle para requerir PIN -->
+                    <div class="flex items-center space-x-2 mb-4">
+                        <input type="checkbox" id="require-pin-toggle" class="form-checkbox h-5 w-5 text-blue-600 rounded-lg">
+                        <label for="require-pin-toggle" class="text-gray-700 font-medium">Requerir PIN para registrarse</label>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-4 mb-6">
+                        <input type="number" id="new-employee-id" placeholder="Número (Opcional)" class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="new-employee-name" placeholder="Nombre Completo" class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <select id="new-employee-type" class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tipo (Opcional)</option>
+                            <option value="Guardias">Guardias</option>
+                            <option value="Limpieza">Limpieza</option>
+                        </select>
+                        <button id="add-employee-button" class="md:col-span-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Agregar Empleado</button>
+                    </div>
+                    <div class="mb-4">
+                        <input type="text" id="admin-employee-search" placeholder="Buscar empleado por nombre o número..." class="w-full p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div id="admin-table-container" class="overflow-x-auto"></div>
+                </div>
+                <!-- IMPORTAR EMPLEADOS -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-bold text-gray-700 mb-4">Importar Empleados (CSV)</h2>
+                    <div class="flex flex-col md:flex-row gap-4 mb-4">
+                        <label class="block w-full">
+                            <span class="sr-only">Elegir archivo CSV</span>
+                            <input type="file" id="csv-file-input" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                        </label>
+                        <button id="import-csv-button" class="w-full md:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">Importar CSV</button>
+                    </div>
+                    <div id="import-status-container" class="mt-4 text-sm"></div>
+                </div>
+            </div>
+
+            <!-- Contenido de Consumos -->
+            <div id="admin-consumos-page" class="hidden">
+                 <div class="flex flex-wrap gap-4 justify-between items-center mb-6">
+                    <h1 class="text-3xl font-bold text-gray-800">Consumos de la Semana Actual</h1>
+                    <div id="consumption-summary" class="bg-white p-4 rounded-lg shadow-md text-sm"></div>
+                    <div class="flex flex-wrap gap-2">
+                        <button id="export-current-log-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Exportar a Excel</button>
+                        <button id="save-week-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Guardar Semana</button>
+                        <button id="clear-log-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Limpiar Semana Actual</button>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg overflow-x-auto"><div id="current-log-table-container"></div></div>
+            </div>
+            
+            <!-- Contenido de Historial -->
+            <div id="admin-historial-page" class="hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-3xl font-bold text-gray-800">Historial de Semanas Guardadas</h1>
+                    <button id="export-history-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Exportar Todo a Excel</button>
+                </div>
+                <div id="history-container" class="space-y-8"></div>
+            </div>
+            
+            <!-- Contenido de Empleados Inactivos -->
+            <div id="admin-inactivos-page" class="hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-bold text-gray-700 mb-4">Empleados Inactivos (21+ Días)</h2>
+                    <div id="inactive-employees-container" class="overflow-x-auto"></div>
+                </div>
+            </div>
+
+            <!-- Contenido de Dispositivos -->
+            <div id="admin-dispositivos-page" class="hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-700">Dispositivos y Comedores Asignados</h2>
+                        <button id="delete-all-devices-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Eliminar Todos</button>
+                    </div>
+                    <div id="devices-container" class="overflow-x-auto"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    </div> <!-- Fin del contenedor con padding -->
+
+    <!-- MODALES -->
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="admin-password-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="comedor-password-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="comedor-selector-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <!-- MODAL DE GAFETES -->
+    <div id="badge-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="edit-employee-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="delete-employee-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="fullscreen-message-container" class="hidden fixed inset-0 z-50 flex items-center justify-center text-white text-center transition-opacity duration-300"></div>
+    <!-- Modal de eliminación de dispositivos -->
+    <div id="delete-device-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <!-- NUEVO: Modal de edición de dispositivo -->
+    <div id="edit-device-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <!-- NUEVO: Modal de confirmación para eliminar todos los dispositivos -->
+    <div id="delete-all-devices-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+
+
+    <script type="module">
+        // ===================================================================================
+        // --- IMPORTACIONES Y CONFIGURACIÓN DE FIREBASE ---
+        // ===================================================================================
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        // Se agrega 'deleteDoc' y 'writeBatch' a la importación
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // NOTA: Para el funcionamiento correcto de esta característica, asegúrate de que las reglas de seguridad de Firebase permiten
+        // la lectura y escritura en la colección 'tabletConfigs' para usuarios autenticados. Por ejemplo:
+        // match /tabletConfigs/{tabletId} {
+        //   allow read, write: if request.auth != null;
+        // }
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAPx9fSD_5CUdva6tmSvXR6NbFsj-dLgAw",
+            authDomain: "gestor-de-platillos.firebaseapp.com",
+            projectId: "gestor-de-platillos",
+            storageBucket: "gestor-de-platillos.appspot.com",
+            messagingSenderId: "243336313047",
+            appId: "1:243336313047:web:b341de705b10069d8b5892",
+            measurementId: "G-S2M9C969LY"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // ===================================================================================
+        // --- INICIO DE LA APLICACIÓN ---
+        // ===================================================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- CONFIGURACIÓN Y ESTADO GLOBAL ---
+            const ADMIN_PASSWORD = '1560';
+            const COMEDOR_PASSWORD = 'comedoresadmin';
+            // Umbral de inactividad en días
+            const INACTIVITY_THRESHOLD_DAYS = 21;
+            const initialData = {
+                // Se agrega el campo 'requirePin' con valor predeterminado 'true'
+                comedores: [ { id: "comedor_principal_01", name: "Comedor Principal", requirePin: true }, { id: "comedor_secundario_02", name: "Comedor Secundario", requirePin: true } ],
+                activeComedorId: "comedor_principal_01",
+                employeeDBs: {
+                    "comedor_principal_01": [
+                        // Se agrega lastActiveDate con el formato de fecha ISO
+                        { "internalId": "c7a8b2f1", "name": "SERGIO ARTURO ROMERO VILLEGAS", "number": "42", "pin": null, "lastActiveDate": new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString() }, 
+                        { "internalId": "d9e0c3g2", "name": "OSVALDO RAFAEL SANCHEZ PEÑA", "number": "468", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "h5i6j7k8", "name": "ALMA DELIA ALVAREZ", "number": "1102", "pin": null, "lastActiveDate": new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString() }, 
+                        { "internalId": "l1m2n3o4", "name": "JORGE ALBERTO POSADA SILVA", "number": "1193", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "p5q6r7s8", "name": "JESUS SANCHEZ ARELLANO", "number": "1200", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "t9u0v1w2", "name": "FELIPE ROBERTO LOPEZ GARCIA", "number": "1300", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "x3y4z5a6", "name": "HONORIO MARTINEZ HERNANDEZ", "number": "1314", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "b7c8d9e0", "name": "ANTONIO RUBIO CANO", "number": "1365", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "f1g2h3i4", "name": "LILIANA ISABEL RAMIREZ CABRERA", "number": "1421", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "j5k6l7m8", "name": "ADAN FARIAS MEDINA", "number": "1422", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "n9o0p1q2", "name": "FERNANDO OLVERA DE ANDREA", "number": "1433", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "r3s4t5u6", "name": "JAIME MENDEZ ESPINOSA", "number": "1500", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "v7w8x9y0", "name": "JUAN PABLO ROSALES SANCHEZ", "number": "1501", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "z1a2b3c4", "name": "RAIMUNDO FORTINO HERNANDEZ", "number": "1535", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "d5e6f7g8", "name": "MARTIN FRANCISCO RESENDIZ JUAREZ", "number": "1660", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "h9i0j1k2", "name": "JOSE ARMANDO DE JESUS RODRIGUEZ", "number": "1668", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "l3m4n5o6", "name": "VICTOR MANUEL REYNA MEDRANO", "number": "1826", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "p7q8r9s0", "name": "JORGE ARMANDO DE JESUS RODRIGUEZ", "number": "1860", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "t1u2v3w4", "name": "EMILIANO HERNANDEZ HERNANDEZ", "number": "1977", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "x5y6z7a8", "name": "JOSE LUIS TRISTAN SOLANO", "number": "2010", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "b9c0d1e2", "name": "ERNESTO CHARLES GOMEZ", "number": "2012", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "f3g4h5i6", "name": "CARMELO HERNANDEZ HERNANDEZ", "number": "2030", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "j7k8l9m0", "name": "ARACELY VAZQUEZ GOMEZ", "number": "2039", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "n1o2p3q4", "name": "JOSE NOE PROA GARCIA", "number": "2046", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "r5s6t7u8", "name": "VICENTE DE LA ROSA RIOS", "number": "2047", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "v9w0x1y2", "name": "COSME MARTINEZ SALVADOR", "number": "2072", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "z3a4b5c6", "name": "VLADIMIR ISAIAS TORRES CAMPEAN", "number": "2104", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "d7e8f9g0", "name": "VICTOR REQUENA ALVAREZ", "number": "2106", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "h1i2j3k4", "name": "RUBITH MARGARITA GUILLEN", "number": "2108", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "l5m6n7o8", "name": "ELOI NERY TINO BURELA", "number": "2146", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "p9q0r1s2", "name": "DAVID MARGARITO GRIMALDO DE LEON", "number": "2235", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "t3u4v5w6", "name": "FRANCISCO CHAVARRIA HERNANDEZ", "number": "2353", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "x7y8z9a0", "name": "VICTOR VAZQUEZ HERNANDEZ", "number": "2524", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "b1c2d3e4", "name": "VIVIA OFIR DE LA O ALVARADO", "number": "2790", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "f5g6h7i8", "name": "ANGEL SALINAS HERNANDEZ", "number": "2813", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "j9k0l1m2", "name": "ISRAEL VIVEROS BECERRA", "number": "2888", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "n3o4p5q6", "name": "ADAI FRANCISCO CASTRO LIÑAN", "number": "3012", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "r7s8t9u0", "name": "LUIS TORRES REYES BELTRAN", "number": "3013", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "v1w2x3y4", "name": "JACOB HERNANDEZ MARTINEZ", "number": "3034", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "z5a6b7c8", "name": "CESAR JAIR CRUZ GALLEGOS", "number": "3094", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "d9e0f1g2", "name": "JOSE TOMAS HERNANDEZ CHALPICA", "number": "3113", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "h3i4j5k6", "name": "FRANCISCO GONZALO GARCIA MOCTEZUMA", "number": "3154", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "l7m8n9o0", "name": "JESUS ELIO ALONSO DE LUNA", "number": "3166", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "p1q2r3s4", "name": "ELIUD SERRATO VELAZQUEZ", "number": "3171", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "t5u6v7w8", "name": "PEDRO ALBERTO GALVAN", "number": "3178", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "x9y0z1a2", "name": "JUAN CARLOS DUARTE GUEVARA", "number": "3196", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "b3c4d5e6", "name": "URIEL OSVALDO CRUZ CRUZ", "number": "3199", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "f7g8h9i0", "name": "JOEL SANTANA CALIXTO", "number": "3221", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "j1k2l3m4", "name": "ISAI MOLINA HERNANDEZ", "number": "3222", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "n5o6p7q8", "name": "DANIEL ANTONIO ARIAS CASTILLO", "number": "3270", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "r9s0t1u2", "name": "JASSIE JONATAN DIAZ GUERRA", "number": "3271", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "v3w4x5y6", "name": "JORGE HERNANDEZ RAMIREZ", "number": "3277", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "z7a8b9c0", "name": "MARIO GUADALUPE CASTRO ALVARADO", "number": "3288", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "d1e2f3g4", "name": "ANGEL OSVALDO SALAZAR LIÑAN", "number": "3388", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "h5i6j7k8", "name": "SERGIO JOSHIMAR DIAZ VARELA", "number": "3391", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "l9m0n1o2", "name": "KARLA JOSE DIAZ MARTINEZ", "number": "3431", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "p3q4r5s6", "name": "BRAULIO MARTINEZ LOPEZ", "number": "3580", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "t7u8v9w0", "name": "EDEN DANILO DE LEON CASTILLO", "number": "3585", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "x1y2z3a4", "name": "ELIBETH GONZALEZ TORRES", "number": "3597", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "b5c6d7e8", "name": "MARGARITO BENITO DOMINGUEZ", "number": "3643", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "f9g0h1i2", "name": "JESUS DIAZ ALMAGER", "number": "3667", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "j3k4l5m6", "name": "BRANDON ARMANDO CARDONA VIGIL", "number": "3674", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "n7o8p9q0", "name": "DIEGO GOMEZ TORRES", "number": "3700", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "r1s2t3u4", "name": "ALEJANDRO GUADALUPE VAZQUEZ MENDOZA", "number": "3710", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "v5w6x7y8", "name": "ELIUD TREJO", "number": "3743", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "z9a0b1c2", "name": "BRIAN ALEJANDRO VALLES GUARDADO", "number": "3749", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "d3e4f5g6", "name": "ORLANDO ACOSTA MORENO", "number": "3766", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "h7i8j9k0", "name": "CARLOS MARCELINO JIMENEZ SUSTAITA", "number": "3785", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "l1m2n3o4", "name": "OMAR", "number": "3786", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "p5q6r7s8", "name": "JUAN ABEL BECERRA CRUZ", "number": "3791", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "t9u0v1w2", "name": "LUCAS ALONSO DE JESUS CRUZ", "number": "3832", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "x3y4z5a6", "name": "HERIBERTO ROGELIO CORTES PONCE", "number": "3840", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "b7c8d9e0", "name": "HERBMER DARWIN MAYO MONTEJO", "number": "3847", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "f1g2h3i4", "name": "SAYRA ADILENE INOCENCIO GONZALEZ", "number": "3851", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "j5k6l7m8", "name": "KEVIN BRYAN FLORES GARCIA", "number": "3854", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "n9o0p1q2", "name": "JOSE ELOY ELIZONDO GUERRA", "number": "3884", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "r3s4t5u6", "name": "JOHANA LIZBETH MASCORRO RAMOS", "number": "9364", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "v7w8x9y0", "name": "JOSE MANUEL ROCHA TORRES", "number": "9371", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "z1a2b3c4", "name": "ALAN JAHIR CASTRO HERNANDEZ", "number": "9375", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "d5e6f7g8", "name": "ROBERTO CARRILLO VAZQUEZ", "number": "9386", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "h9i0j1k2", "name": "ARACELI NOHEMI BECERRA RUIZ", "number": "9406", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "l3m4n5o6", "name": "RAMIRO CARMONA", "number": "3621", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "p7q8r9s0", "name": "DANIA GONZALEZ", "number": "3908", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "t1u2v3w4", "name": "PEDRO MARTINEZ", "number": "2121", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "x5y6z7a8", "name": "ALAN JARAMILLO", "number": "3862", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "b9c0d1e2", "name": "ARMANDO CORONA", "number": "3679", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "f3g4h5i6", "name": "JORGE DELGADO H.", "number": "3877", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "j7k8l9m0", "name": "ENRIQUE SALAS", "number": "2281", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "n1o2p3q4", "name": "RODOLFO MALDONADO CISNEROS", "number": "2296", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "r5s6t7u8", "name": "BRAYAN CORONA", "number": "3671", "pin": null, "lastActiveDate": new Date().toISOString() }
+                    ],
+                    "comedor_secundario_02": [
+                        { "internalId": "sec001", "name": "DANIEL RDZ", "number": "351", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec002", "name": "EMMANUEL HDZ. MTZ", "number": "3907", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec003", "name": "JULIO A. GARCIA ALBA", "number": "3895", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec004", "name": "FRANCISCO DIMAS", "number": "2080", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec005", "name": "ISRAEL MENDOZA", "number": "2827", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec006", "name": "ALVARO AZUARA", "number": "3890", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec007", "name": "ESTEBAN ESQUIVEL MEJIA", "number": "2693", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec008", "name": "CARLOS IVAN ALCARAZ", "number": "3229", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec009", "name": "RUBEN ISAI BALDERAS MTZ.", "number": "3259", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec010", "name": "HUGO ORTIZ VALDEZ", "number": "2305", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec011", "name": "RAMON HERRERA", "number": "3891", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec012", "name": "PEDRO AVITIA", "number": "3893", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec013", "name": "ERNESTO MARTINEZ", "number": "3864", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec014", "name": "ERNESTO MARTINEZ", "number": "3894", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec015", "name": "MIGUEL G.", "number": "3893", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec016", "name": "ENRIQUE ALMANZA", "number": "3432", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec017", "name": "DIEGO RAFAEL SANCHEZ", "number": "3888", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec018", "name": "MARTIN DIAZ", "number": "3016", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec019", "name": "JUAN TELLEZ", "number": "35680", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec020", "name": "JOSE FRANCISCO DIMAS", "number": "2080", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec021", "name": "OSCAR GARCIA", "number": "3357", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec022", "name": "CESAR MUÑOZ", "number": "", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec023", "name": "JUAN PUENTE", "number": "1729", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec024", "name": "HERIBERTO SANDOVAL", "number": "1844", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec025", "name": "JOSE ALE VAZQUEZ", "number": "2386", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec026", "name": "OVALDO DARIN GARCIA", "number": "3899", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec027", "name": "ANGEL CASARES", "number": "3904", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec028", "name": "JUAN LOPEZ", "number": "3903", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec029", "name": "ABINADAB GARCIA", "number": "3901", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec030", "name": "JOSE LUIS CORREO", "number": "2716", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec031", "name": "ANTONIO DE LEON", "number": "2186", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec032", "name": "ERNESTO VAZQUEZ", "number": "8861", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec033", "name": "ALEXIS FEDRAS", "number": "3216", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec034", "name": "GUSTAVO BRIONES TIRADO", "number": "3902", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec035", "name": "UBALDO DARIN GARCIA", "number": "3899", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec036", "name": "ANTONIO AGUILAR", "number": "1634", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec037", "name": "JAVIER DE LOS ANGELES", "number": "", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec038", "name": "FERNANDO MAYO", "number": "3909", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec039", "name": "RODOLFO RANGEL", "number": "6394", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec040", "name": "RODOLFO MALDONADO", "number": "", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec041", "name": "ARMANDO O.", "number": "3365", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec042", "name": "FRANCISCO J. MARTINEZ", "number": "3911", "pin": null, "lastActiveDate": new Date().toISOString() },
+                        { "internalId": "sec043", "name": "VICTOR MANUEL REYNA MEDRANO", "number": "", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec044", "name": "RAIMUNDO FORTINO HERNANDEZ", "number": "", "pin": null, "lastActiveDate": new Date().toISOString() }, 
+                        { "internalId": "sec045", "name": "JESUS ELIO ALONSO DE LUNA", "number": "", "pin": null, "lastActiveDate": new Date().toISOString() }
+                    ]
+                },
+                "consumptionLogs": { "comedor_principal_01": {}, "comedor_secundario_02": {} },
+                "consumptionHistories": { "comedor_principal_01": [], "comedor_secundario_02": [] }
+            };
+            const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            const dayHeaders = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+            const displayDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+            let appState = {};
+            let onPasswordSuccess = null;
+            let audioStarted = false;
+            let currentAdminPage = 'gestion';
+            
+            // ===================================================================================
+            // --- CÓDIGO NUEVO PARA LA LÓGICA DE TABLETS ---
+            // ===================================================================================
+            const tabletIdKey = 'comedor_tablet_id';
+            let tabletId = localStorage.getItem(tabletIdKey);
+            if (!tabletId) {
+                tabletId = crypto.randomUUID();
+                localStorage.setItem(tabletIdKey, tabletId);
+            }
+            
+            const tabletConfigRef = doc(db, "tabletConfigs", tabletId);
+            let tabletConfig = {};
+
+            // ===================================================================================
+            // --- MANEJO DE DATOS (FIREBASE) ---
+            // ===================================================================================
+            
+            const dbRef = doc(db, "comedorData", "main");
+
+            const saveData = async () => {
+                try {
+                    await setDoc(dbRef, appState);
+                } catch (e) {
+                    console.error("Error saving data to Firebase: ", e);
+                    showFullscreenMessage(false, 'Error', "No se pudo guardar la información. Revisa la conexión a internet.");
+                    setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 3000);
+                }
+            };
+
+            const loadAndListenForData = async () => {
+                const loadingOverlay = document.getElementById('loading-overlay');
+                onSnapshot(dbRef, async (docSnap) => {
+                    if (docSnap.exists()) {
+                        appState = docSnap.data();
+                        
+                        // Asegurarse de que el campo 'requirePin' exista para cada comedor
+                        appState.comedores.forEach(comedor => {
+                            if (typeof comedor.requirePin === 'undefined') {
+                                comedor.requirePin = true; // Por defecto es true
+                            }
+                        });
+                        console.log("Datos cargados/actualizados desde Firebase.");
+                    } else {
+                        console.log("No hay datos en Firebase. Creando documento inicial...");
+                        appState = initialData; // Cargar los datos iniciales
+                        await saveData(); // Guardarlos en Firebase
+                    }
+                    
+                    if (loadingOverlay && loadingOverlay.style.display !== 'none') {
+                        loadingOverlay.style.display = 'none';
+                        switchPage('main-page');
+                    }
+                    renderAll();
+                }, (error) => {
+                    console.error("Error al escuchar datos de Firebase:", error);
+                    if (loadingOverlay) {
+                         loadingOverlay.innerHTML = `<div class="text-center p-4"><h2 class="text-2xl font-bold text-red-600 mb-4">Error de Base de Datos</h2><p class="text-gray-700">No se pudo conectar a Firestore. Revisa las reglas de seguridad en tu consola de Firebase.</p></div>`;
+                    }
+                });
+            };
+
+            // NUEVO: Escuchar la configuración de la tablet actual
+            const listenForTabletConfig = () => {
+                 onSnapshot(tabletConfigRef, async (docSnap) => {
+                    if (docSnap.exists()) {
+                        tabletConfig = docSnap.data();
+                        // Actualizar el estado del comedor activo si la configuración de la tablet cambia
+                        if(tabletConfig.activeComedorId && appState.activeComedorId !== tabletConfig.activeComedorId) {
+                            appState.activeComedorId = tabletConfig.activeComedorId;
+                        }
+                    } else {
+                        // Si no existe la configuración, forzar la selección de comedor
+                        tabletConfig = { activeComedorId: null };
+                        appState.activeComedorId = null;
+                        await setDoc(tabletConfigRef, tabletConfig);
+                    }
+                    renderAll();
+                });
+            };
+
+            // ===================================================================================
+            // --- ELEMENTOS DEL DOM ---
+            // ===================================================================================
+            const allElements = {
+                pageContainers: document.querySelectorAll('.page-container'), 
+                adminComedorSelector: document.getElementById('admin-comedor-selector'), 
+                mainContentContainer: document.getElementById('main-content-container'),
+                employeeSearchInput: document.getElementById('employeeSearch'),
+                searchResultsContainer: document.getElementById('search-results-container'), 
+                submitButton: document.getElementById('submitButton'),
+                addEmployeeButton: document.getElementById('add-employee-button'), 
+                newEmployeeIdInput: document.getElementById('new-employee-id'),
+                newEmployeeNameInput: document.getElementById('new-employee-name'), 
+                newEmployeeType: document.getElementById('new-employee-type'),
+                adminTableContainer: document.getElementById('admin-table-container'),
+                currentLogTableContainer: document.getElementById('current-log-table-container'), 
+                historyContainer: document.getElementById('history-container'),
+                clearLogButton: document.getElementById('clear-log-button'), 
+                saveWeekButton: document.getElementById('save-week-button'),
+                exportCurrentLogButton: document.getElementById('export-current-log-button'), 
+                exportHistoryButton: document.getElementById('export-history-button'),
+                confirmationModal: document.getElementById('confirmation-modal'), 
+                adminPasswordModal: document.getElementById('admin-password-modal'),
+                comedorPasswordModal: document.getElementById('comedor-password-modal'),
+                comedorSelectorModal: document.getElementById('comedor-selector-modal'),
+                fullscreenMessageContainer: document.getElementById('fullscreen-message-container'), 
+                comedoresList: document.getElementById('comedores-list'),
+                newComedorNameInput: document.getElementById('new-comedor-name'), 
+                addComedorButton: document.getElementById('add-comedor-button'),
+                currentComedorNameSpan: document.getElementById('current-comedor-name'),
+                adminEmployeeSearch: document.getElementById('admin-employee-search'),
+                badgeModal: document.getElementById('badge-modal'),
+                editEmployeeModal: document.getElementById('edit-employee-modal'),
+                csvFileInput: document.getElementById('csv-file-input'),
+                importCsvButton: document.getElementById('import-csv-button'),
+                importStatusContainer: document.getElementById('import-status-container'),
+                consumptionSummary: document.getElementById('consumption-summary'),
+                showComedorSelectorButton: document.getElementById('show-comedor-selector-button'),
+                activeComedorName: document.getElementById('active-comedor-name'),
+                adminNavButtons: document.querySelectorAll('.admin-nav-button'),
+                adminGestionPage: document.getElementById('admin-gestion-page'),
+                adminConsumosPage: document.getElementById('admin-consumos-page'),
+                adminHistorialPage: document.getElementById('admin-historial-page'),
+                showAdminLoginButton: document.getElementById('show-admin-login-button'),
+                backToMainButton: document.getElementById('back-to-main-button'),
+                deleteEmployeeModal: document.getElementById('delete-employee-modal'),
+                inactiveEmployeesContainer: document.getElementById('inactive-employees-container'),
+                generateBulkBadgesButton: document.getElementById('generate-bulk-badges-button'),
+                requirePinToggle: document.getElementById('require-pin-toggle'),
+                // NUEVO:
+                adminDispositivosPage: document.getElementById('admin-dispositivos-page'),
+                devicesContainer: document.getElementById('devices-container'),
+                deleteDeviceModal: document.getElementById('delete-device-modal'),
+                editDeviceModal: document.getElementById('edit-device-modal'),
+                deleteAllDevicesModal: document.getElementById('delete-all-devices-modal'),
+                deleteAllDevicesButton: document.getElementById('delete-all-devices-button')
+            };
+            
+            // ===================================================================================
+            // --- LÓGICA DE SONIDO ---
+            // ===================================================================================
+            const successSynth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const errorSynth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.005, decay: 0.2, sustain: 0.1, release: 1 } }).toDestination();
+
+            const startAudio = () => {
+                if (!audioStarted) {
+                    Tone.start();
+                    audioStarted = true;
+                }
+            };
+
+            // ===================================================================================
+            // --- FUNCIONES DE RENDERIZADO Y TABLAS ---
+            // ===================================================================================
+            const calculateTotals = (log) => {
+                let dailyTotals = {};
+                displayDays.forEach(day => {
+                    let total = 0;
+                    for (const employeeId in log) {
+                        if (log[employeeId][day]) {
+                            total += log[employeeId][day];
+                        }
+                    }
+                    dailyTotals[day] = total;
+                });
+                const overallTotal = Object.values(dailyTotals).reduce((sum, count) => sum + count, 0);
+                return { dailyTotals, overallTotal };
+            };
+
+            const renderConsumptionSummary = (log) => {
+                const summaryElement = allElements.consumptionSummary;
+                if (!summaryElement) return;
+
+                const { dailyTotals, overallTotal } = calculateTotals(log);
+                let summaryHTML = `<p class="font-bold text-lg">Total Consumos: ${overallTotal}</p>`;
+                summaryHTML += `<ul class="mt-2 text-sm text-gray-700">`;
+                displayDays.forEach(day => {
+                    summaryHTML += `<li>${day}: ${dailyTotals[day] || 0}</li>`;
+                });
+                summaryHTML += `</ul>`;
+                summaryElement.innerHTML = summaryHTML;
+            };
+
+            const createTableHTML = (logData, db) => {
+                const { dailyTotals, overallTotal } = calculateTotals(logData);
+                let tableRows = '';
+                const sortedEmployees = [...db].sort((a, b) => a.name.localeCompare(b.name));
+                sortedEmployees.forEach(employee => {
+                    let cells = '';
+                    displayDays.forEach(day => {
+                        const count = (logData[employee.internalId] && logData[employee.internalId][day]) || 0;
+                        cells += `<td class="py-3 px-2 text-center font-bold text-gray-700">${count > 0 ? count : ''}</td>`;
+                    });
+                    const numberDisplay = employee.number ? `<span class="text-gray-500 text-xs">(${employee.number})</span>` : '';
+                    const typeDisplay = employee.type ? `<span class="text-purple-600 text-xs font-bold ml-1">(${employee.type})</span>` : '';
+                    tableRows += `<tr class="border-b"><td class="py-3 px-2 font-medium text-gray-800">${employee.name} ${numberDisplay}${typeDisplay}</td>${cells}</tr>`;
+                });
+
+                let totalRows = `<tr class="bg-gray-200 font-bold"><td class="py-3 px-2">Total del Día</td>`;
+                displayDays.forEach(day => {
+                    totalRows += `<td class="py-3 px-2 text-center">${dailyTotals[day]}</td>`;
+                });
+                totalRows += `</tr>`;
+
+                return `
+                    <p class="font-bold mb-4">Total Consumos: ${overallTotal}</p>
+                    <table class="min-w-full bg-white text-sm">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="py-3 px-2 text-left">Empleado</th>
+                                ${dayHeaders.map(h => `<th class="py-3 px-2 text-center">${h}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                            ${totalRows}
+                        </tbody>
+                    </table>
+                `;
+            };
+            
+            const renderAdminTable = (searchTerm = '') => {
+                if (!allElements.adminTableContainer) return;
+                const db = appState.employeeDBs[appState.activeComedorId] || [];
+                const lowerCaseSearchTerm = searchTerm.toLowerCase();
+                const filteredDb = searchTerm ? db.filter(emp => 
+                    emp.name.toLowerCase().includes(lowerCaseSearchTerm) || 
+                    (emp.number && emp.number.includes(lowerCaseSearchTerm))
+                ) : db;
+
+                let tableRows = '';
+                const sortedEmployees = [...filteredDb].sort((a, b) => a.name.localeCompare(b.name));
+                sortedEmployees.forEach(employee => {
+                    const typeDisplay = employee.type ? `<span class="text-purple-600 font-semibold">(${employee.type})</span>` : '';
+                    const pinStatus = employee.pin ? `<span class="text-green-600 font-semibold">(PIN Creado)</span>` : `<span class="text-gray-400 font-semibold">(Sin PIN)</span>`;
+                    tableRows += `<tr class="border-b"><td class="py-3 px-4 flex items-center"><input type="checkbox" data-id="${employee.internalId}" class="employee-checkbox mr-2"><span>${employee.number || 'N/A'}</span></td><td class="py-3 px-4">${employee.name} ${typeDisplay} ${pinStatus}</td><td class="py-3 px-4 text-center">
+                        <div class="relative inline-block text-left">
+                            <button class="actions-button inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">
+                                Acciones
+                                <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </button>
+                            <div class="actions-dropdown hidden origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                                <div class="py-1" role="none">
+                                    <a href="#" data-id="${employee.internalId}" class="edit-employee-button text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100">Editar</a>
+                                    <a href="#" data-id="${employee.internalId}" class="generate-badge-button text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100">Generar Gafete</a>
+                                    <a href="#" data-id="${employee.internalId}" class="reset-pin-button text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100">Resetear PIN</a>
+                                    <a href="#" data-id="${employee.internalId}" class="delete-employee-button text-red-700 block px-4 py-2 text-sm hover:bg-gray-100">Eliminar</a>
+                                </div>
+                            </div>
+                        </div>
+                    </td></tr>`;
+                });
+                allElements.adminTableContainer.innerHTML = `
+                    <table class="min-w-full bg-white">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="py-3 px-4 text-left">Número</th>
+                                <th class="py-3 px-4 text-left">Nombre</th>
+                                <th class="py-3 px-4 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>`;
+                
+                const checkboxes = allElements.adminTableContainer.querySelectorAll('.employee-checkbox');
+                let selectedCount = 0;
+                checkboxes.forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        selectedCount = allElements.adminTableContainer.querySelectorAll('.employee-checkbox:checked').length;
+                        if (selectedCount > 0) {
+                            allElements.generateBulkBadgesButton.classList.remove('hidden');
+                        } else {
+                            allElements.generateBulkBadgesButton.classList.add('hidden');
+                        }
+                    });
+                });
+            };
+
+            const renderCurrentLogTable = () => {
+                const log = appState.consumptionLogs[appState.activeComedorId] || {};
+                const db = appState.employeeDBs[appState.activeComedorId] || [];
+                if (allElements.currentLogTableContainer) {
+                    allElements.currentLogTableContainer.innerHTML = createTableHTML(log, db);
+                }
+                renderConsumptionSummary(log);
+            };
+
+            const renderHistory = () => {
+                if (!allElements.historyContainer) return;
+                const history = appState.consumptionHistories[appState.activeComedorId] || [];
+                const db = appState.employeeDBs[appState.activeComedorId] || [];
+                allElements.historyContainer.innerHTML = '';
+                if (history.length === 0) {
+                    allElements.historyContainer.innerHTML = '<p class="text-center text-gray-500">No hay semanas guardadas en el historial.</p>';
+                    return;
+                }
+                [...history].reverse().forEach((record, index) => {
+                    const originalIndex = history.length - 1 - index;
+                    const lastUpdateDate = new Date(record.date).toLocaleString('es-MX', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const weekRange = getWeekRange(new Date(record.weekId.replace(/-/g, '/')));
+                    const recordHTML = `
+                        <div class="bg-white p-6 rounded-2xl shadow-lg">
+                            <div class="flex flex-wrap gap-4 justify-between items-center mb-4">
+                                <div>
+                                    <h2 class="text-xl font-bold text-gray-700">${weekRange}</h2>
+                                    <p class="text-sm text-gray-500">Última actualización: ${lastUpdateDate}</p>
+                                </div>
+                                <button data-index="${originalIndex}" class="delete-history-record-button bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded">Eliminar</button>
+                            </div>
+                            <div class="overflow-x-auto">${createTableHTML(record.log, db)}</div>
+                        </div>`;
+                    allElements.historyContainer.innerHTML += recordHTML;
+                });
+            };
+            
+            // Nueva función para renderizar la tabla de empleados inactivos
+            const renderInactiveEmployeesTable = () => {
+                if (!allElements.inactiveEmployeesContainer) return;
+                const db = appState.employeeDBs[appState.activeComedorId] || [];
+                const now = new Date();
+                const inactiveEmployees = db.filter(emp => {
+                    if (!emp.lastActiveDate) return false;
+                    const lastActive = new Date(emp.lastActiveDate);
+                    const diffTime = Math.abs(now - lastActive);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays >= INACTIVITY_THRESHOLD_DAYS;
+                });
+                
+                if (inactiveEmployees.length === 0) {
+                    allElements.inactiveEmployeesContainer.innerHTML = '<p class="text-center text-gray-500">No hay empleados inactivos que cumplan con el criterio.</p>';
+                    return;
+                }
+
+                let tableRows = '';
+                inactiveEmployees.forEach(employee => {
+                    const lastActive = new Date(employee.lastActiveDate);
+                    const diffTime = Math.abs(now - lastActive);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const numberDisplay = employee.number ? `Nº ${employee.number}` : 'N/A';
+                    
+                    // Se agrega el botón de eliminar a cada fila de empleados inactivos
+                    tableRows += `<tr class="border-b"><td class="py-3 px-4">${employee.name}</td><td class="py-3 px-4 text-center">${numberDisplay}</td><td class="py-3 px-4 text-center">${diffDays} días</td><td class="py-3 px-4 text-center"><button data-id="${employee.internalId}" class="delete-inactive-button bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded">Eliminar</button></td></tr>`;
+                });
+
+                allElements.inactiveEmployeesContainer.innerHTML = `
+                    <table class="min-w-full bg-white text-sm">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="py-3 px-4 text-left">Nombre</th>
+                                <th class="py-3 px-4 text-center">Número</th>
+                                <th class="py-3 px-4 text-center">Inactivo por</th>
+                                <th class="py-3 px-4 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                `;
+            };
+
+            const renderComedores = () => {
+                if (!allElements.comedoresList) return;
+                allElements.comedoresList.innerHTML = '';
+                appState.comedores.forEach(comedor => {
+                    const comedorEl = document.createElement('div');
+                    comedorEl.className = 'flex items-center justify-between p-2 border rounded-lg';
+                    comedorEl.innerHTML = `
+                        <span class="font-medium">${comedor.name}</span>
+                        <div class="flex gap-2">
+                            <button data-id="${comedor.id}" class="rename-comedor-button bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded">Renombrar</button>
+                            <button data-id="${comedor.id}" class="delete-comedor-button bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded">Eliminar</button>
+                        </div>`;
+                    allElements.comedoresList.appendChild(comedorEl);
+                });
+            };
+
+            const populateComedorSelectors = (selector) => {
+                if (!selector) return;
+                selector.innerHTML = '';
+                if (!appState.comedores) return;
+                appState.comedores.forEach(comedor => {
+                    const option = document.createElement('option');
+                    option.value = comedor.id;
+                    option.textContent = comedor.name;
+                    if (comedor.id === appState.activeComedorId) option.selected = true;
+                    selector.appendChild(option);
+                });
+            };
+
+            // NUEVO: Renderizar la tabla de dispositivos con sobrenombres y botones de edición
+            const renderDevicesTable = async () => {
+                if (!allElements.devicesContainer) return;
+                allElements.devicesContainer.innerHTML = `<div class="text-center text-gray-500">Cargando dispositivos...</div>`;
+                const devicesSnapshot = await getDocs(collection(db, "tabletConfigs"));
+                const devices = [];
+                devicesSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    devices.push({ id: doc.id, activeComedorId: data.activeComedorId, nickname: data.nickname || 'Sin sobrenombre' });
+                });
+
+                if (devices.length === 0) {
+                    allElements.devicesContainer.innerHTML = '<p class="text-center text-gray-500">No hay dispositivos registrados.</p>';
+                    return;
+                }
+                
+                let tableRows = '';
+                devices.forEach(device => {
+                    const comedor = appState.comedores.find(c => c.id === device.activeComedorId);
+                    const comedorName = comedor ? comedor.name : 'Sin asignar';
+                    tableRows += `
+                        <tr class="border-b">
+                            <td class="py-3 px-4 font-medium text-gray-800">${device.nickname} <span class="text-xs text-gray-400">(${device.id.substring(0, 8)})</span></td>
+                            <td class="py-3 px-4 text-center">${comedorName}</td>
+                            <td class="py-3 px-4 text-center">
+                                <button data-id="${device.id}" data-nickname="${device.nickname}" data-comedor-id="${device.activeComedorId}" class="edit-device-button bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded">Editar</button>
+                                <button data-id="${device.id}" class="delete-device-button bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded">Eliminar</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                allElements.devicesContainer.innerHTML = `
+                    <table class="min-w-full bg-white text-sm">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="py-3 px-4 text-left">Sobrenombre (ID)</th>
+                                <th class="py-3 px-4 text-center">Comedor Asignado</th>
+                                <th class="py-3 px-4 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                `;
+            };
+
+            const renderAll = () => {
+                if(allElements.adminComedorSelector) populateComedorSelectors(allElements.adminComedorSelector);
+                
+                // NUEVO: Lógica para mostrar el marcador de comedor o el selector
+                const activeComedor = appState.comedores.find(c => c.id === tabletConfig.activeComedorId);
+                const isComedorAssigned = !!activeComedor;
+                if(isComedorAssigned) {
+                    allElements.activeComedorName.textContent = activeComedor.name;
+                    allElements.showComedorSelectorButton.classList.remove('hover:bg-gray-200', 'hover:text-gray-800');
+                    allElements.showComedorSelectorButton.classList.add('cursor-default');
+                } else {
+                    allElements.activeComedorName.textContent = 'Seleccionar...';
+                    allElements.showComedorSelectorButton.classList.add('hover:bg-gray-200', 'hover:text-gray-800');
+                    allElements.showComedorSelectorButton.classList.remove('cursor-default');
+                }
+                
+                const currentAdminPageName = document.querySelector('.admin-nav-button.text-blue-600')?.dataset.adminPage;
+                if(currentAdminPageName) {
+                    switch(currentAdminPageName) {
+                        case 'gestion':
+                            if (allElements.adminGestionPage) {
+                                const comedor = appState.comedores.find(c => c.id === appState.activeComedorId);
+                                if(comedor) allElements.currentComedorNameSpan.textContent = comedor.name;
+                                renderAdminTable();
+                                renderComedores();
+                            }
+                            break;
+                        case 'consumos':
+                            if (allElements.adminConsumosPage) {
+                                renderCurrentLogTable();
+                            }
+                            break;
+                        case 'historial':
+                            if (allElements.adminHistorialPage) {
+                                renderHistory();
+                            }
+                            break;
+                        case 'inactivos':
+                            if (allElements.adminInactivosPage) {
+                                renderInactiveEmployeesTable();
+                            }
+                            break;
+                        case 'dispositivos':
+                             if (allElements.adminDispositivosPage) {
+                                renderDevicesTable();
+                            }
+                            break;
+                    }
+                }
+            };
+
+            // --- FUNCIONES DE LÓGICA ---
+            const switchPage = (targetPageId) => {
+                allElements.pageContainers.forEach(p => {
+                    if (p) {
+                        p.classList.add('hidden');
+                    }
+                });
+                const targetPage = document.getElementById(targetPageId);
+                if (targetPage) targetPage.classList.remove('hidden');
+                
+                if (targetPageId === 'admin-dashboard-page') {
+                    document.body.style.backgroundImage = 'none';
+                    if (allElements.showComedorSelectorButton) allElements.showComedorSelectorButton.classList.add('hidden');
+                    if (allElements.showAdminLoginButton) allElements.showAdminLoginButton.classList.add('hidden');
+                } else {
+                    if (targetPageId === 'main-page') {
+                        document.body.style.backgroundImage = "url('https://i.imgur.com/xe6ZZjl.png')";
+                        document.body.style.backgroundSize = "cover";
+                        document.body.style.backgroundPosition = "center";
+                        document.body.style.backgroundAttachment = "fixed";
+                        if (allElements.showComedorSelectorButton) allElements.showComedorSelectorButton.classList.remove('hidden');
+                        if (allElements.showAdminLoginButton) allElements.showAdminLoginButton.classList.remove('hidden');
+                    } else {
+                        document.body.style.backgroundImage = 'none';
+                        if (allElements.showComedorSelectorButton) allElements.showComedorSelectorButton.classList.add('hidden');
+                        if (allElements.showAdminLoginButton) allElements.showAdminLoginButton.classList.add('hidden');
+                    }
+                }
+                
+                renderAll();
+            };
+
+            const switchAdminPage = (targetPageId) => {
+                // Ocultar todos los contenedores del panel de administración
+                const adminPages = document.querySelectorAll('#admin-content-container > div');
+                adminPages.forEach(p => {
+                    if (p) p.classList.add('hidden');
+                });
+
+                const targetPage = document.getElementById(targetPageId);
+                if (targetPage) {
+                    targetPage.classList.remove('hidden');
+                }
+                
+                allElements.adminNavButtons.forEach(btn => {
+                    const isTarget = btn.dataset.adminPage === targetPageId.replace('admin-', '').replace('-page', '');
+                    btn.classList.toggle('text-blue-600', isTarget); btn.classList.toggle('border-b-2', isTarget); btn.classList.toggle('border-blue-600', isTarget); btn.classList.toggle('text-gray-500', !isTarget);
+                });
+                
+                currentAdminPage = targetPageId.replace('admin-', '').replace('-page', '');
+                renderAll();
+            };
+
+            const showFullscreenMessage = (isSuccess, message, details) => {
+                const container = allElements.fullscreenMessageContainer;
+                if (!container) return; // Add a check to prevent errors
+                container.className = `fixed inset-0 z-[100] flex items-center justify-center text-white text-center transition-opacity duration-300 ${isSuccess ? 'bg-green-500' : 'bg-red-600'}`;
+                container.innerHTML = `<div class="flex flex-col items-center p-4"><div class="w-24 h-24 mb-6 flex items-center justify-center bg-white bg-opacity-20 rounded-full"><svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">${isSuccess ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>' : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>'}</svg></div><h2 class="text-5xl font-black">${message}</h2><p class="text-2xl mt-2 opacity-90">${details}</p></div>`;
+                container.classList.remove('hidden');
+
+                if (isSuccess) {
+                    successSynth.triggerAttackRelease("C5", "8n", Tone.now());
+                    successSynth.triggerAttackRelease("G5", "8n", Tone.now() + 0.2);
+                } else {
+                    errorSynth.triggerAttackRelease("C3", "4n");
+                }
+            };
+
+            const resetMainView = () => {
+                if (allElements.fullscreenMessageContainer) allElements.fullscreenMessageContainer.classList.add('hidden');
+                if (allElements.employeeSearchInput) allElements.employeeSearchInput.value = '';
+                if (allElements.searchResultsContainer) {
+                    allElements.searchResultsContainer.innerHTML = '';
+                    allElements.searchResultsContainer.classList.add('hidden');
+                }
+                if (allElements.employeeSearchInput) allElements.employeeSearchInput.focus();
+            };
+            
+            // Se agrega un nuevo parámetro 'isQrScan' para diferenciar la fuente de la búsqueda
+            const showConfirmationModal = (employee, comedorId, isQrScan) => {
+                 const numberDisplay = employee.number ? `Nº Empleado: ${employee.number}` : 'Sin número asignado';
+                 const typeDisplay = employee.type ? `<p class="text-purple-600 font-semibold">${employee.type}</p>` : '';
+                 if (!allElements.confirmationModal) return;
+                 // Se guarda la fuente de la búsqueda en un atributo de datos del botón de confirmación
+                 allElements.confirmationModal.innerHTML = `<div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active"><h2 class="text-2xl font-bold text-gray-800 mb-4">Confirmar Identidad</h2><p class="text-gray-600 mb-2">¿Eres tú?</p><div class="bg-gray-100 p-4 rounded-lg mb-6"><p class="text-xl font-bold text-blue-600">${employee.name}</p>${typeDisplay}<p class="text-gray-500">${numberDisplay}</p></div><div class="flex justify-between gap-4"><button id="modal-cancel-btn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg">Cancelar</button><button id="modal-confirm-btn" data-internal-id="${employee.internalId}" data-comedor-id="${comedorId}" data-is-qr="${isQrScan}" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg">Confirmar</button></div></div>`;
+                 allElements.confirmationModal.classList.remove('hidden');
+            };
+
+            const showAdminPasswordModal = (callback) => {
+                onPasswordSuccess = callback;
+                if (!allElements.adminPasswordModal) return;
+                allElements.adminPasswordModal.innerHTML = `<div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active"><h2 class="text-xl font-bold text-gray-800 mb-4">Acceso de Administrador</h2><p class="text-gray-600 mb-4">Ingrese la contraseña para continuar.</p><input type="password" id="admin-password-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3 mb-4"><div class="flex justify-between gap-4"><button id="admin-password-cancel" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button><button id="admin-password-confirm" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Confirmar</button></div></div>`;
+                allElements.adminPasswordModal.classList.remove('hidden');
+                document.getElementById('admin-password-input')?.focus();
+            };
+
+            const showDeleteEmployeeModal = (employee) => {
+                if (!allElements.deleteEmployeeModal) return;
+                allElements.deleteEmployeeModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active">
+                        <h2 class="text-2xl font-bold text-red-700 mb-4">Confirmar Eliminación</h2>
+                        <p class="text-gray-600 mb-6">¿Estás seguro de que quieres eliminar a **${employee.name}**? Esta acción no se puede deshacer.</p>
+                        <input type="password" id="delete-password-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3 mb-4" placeholder="Contraseña de administrador">
+                        <div class="flex justify-between gap-4">
+                            <button id="delete-cancel-btn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                            <button id="delete-confirm-btn" data-id="${employee.internalId}" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg">Eliminar</button>
+                        </div>
+                    </div>`;
+                allElements.deleteEmployeeModal.classList.remove('hidden');
+                document.getElementById('delete-password-input')?.focus();
+            };
+
+            const showComedorPasswordModal = () => {
+                if (!allElements.comedorPasswordModal) return;
+                allElements.comedorPasswordModal.innerHTML = `<div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active"><h2 class="text-xl font-bold text-gray-800 mb-4">Acceso a Comedores</h2><p class="text-gray-600 mb-4">Ingrese la contraseña de comedor para continuar.</p><input type="password" id="comedor-password-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3 mb-4"><div class="flex justify-between gap-4"><button id="comedor-password-cancel" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button><button id="comedor-password-confirm" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Confirmar</button></div></div>`;
+                allElements.comedorPasswordModal.classList.remove('hidden');
+                document.getElementById('comedor-password-input')?.focus();
+            };
+
+            const showComedorSelectorModal = () => {
+                if (!allElements.comedorSelectorModal) return;
+                allElements.comedorSelectorModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active">
+                        <h2 class="text-xl font-bold text-gray-800 mb-4">Seleccionar Comedor</h2>
+                        <p class="text-gray-600 mb-4">Elija el comedor activo.</p>
+                        <select id="comedor-selector-modal-select" class="p-3 border-2 border-gray-200 rounded-lg w-full mb-4"></select>
+                        <div class="flex justify-end">
+                            <button id="close-comedor-selector-modal" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cerrar</button>
+                        </div>
+                    </div>`;
+                allElements.comedorSelectorModal.classList.remove('hidden');
+                populateComedorSelectors(document.getElementById('comedor-selector-modal-select'));
+            };
+            
+            const showRenameModal = (comedorId, currentName) => {
+                if (!allElements.adminPasswordModal) return;
+                allElements.adminPasswordModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active">
+                        <h2 class="text-xl font-bold text-gray-800 mb-4">Renombrar Comedor</h2>
+                        <p class="text-gray-600 mb-4">Ingrese el nuevo nombre.</p>
+                        <input type="text" id="rename-comedor-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3 mb-4" value="${currentName}">
+                        <div class="flex justify-between gap-4">
+                            <button id="rename-cancel-btn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                            <button id="rename-confirm-btn" data-id="${comedorId}" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Confirmar</button>
+                        </div>
+                    </div>`;
+                allElements.adminPasswordModal.classList.remove('hidden');
+                document.getElementById('rename-comedor-input')?.focus();
+            };
+            
+            const showPinModal = (isCreating, employee, comedorId) => {
+                const title = isCreating ? 'Crear PIN de Seguridad' : 'Ingresar PIN';
+                const message = isCreating ? 'Este es tu primer registro. Crea un PIN de 4 dígitos para proteger tu cuenta.' : `Hola ${employee.name.split(' ')[0]}, por favor ingresa tu PIN.`;
+                if (!allElements.confirmationModal) return;
+                allElements.confirmationModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2">${title}</h2>
+                        <p class="text-gray-600 mb-4">${message}</p>
+                        <input type="number" id="pin-input" class="shadow-inner text-center tracking-[1em] text-2xl border-2 rounded-lg w-full py-2 px-3 mb-4" maxlength="4" placeholder="••••">
+                        <div class="flex justify-between gap-4">
+                            <button id="pin-cancel-btn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                            <button id="pin-confirm-btn" data-internal-id="${employee.internalId}" data-comedor-id="${comedorId}" data-is-creating="${isCreating}" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg">Aceptar</button>
+                        </div>
+                    </div>`;
+                document.getElementById('pin-input')?.focus();
+            };
+            
+            const showBadgeModal = (employees) => {
+                if (!allElements.badgeModal) return;
+                let badgesHtml = '';
+                employees.forEach(employee => {
+                    const numberDisplay = employee.number ? `Nº ${employee.number}` : (employee.type || '');
+                    badgesHtml += `
+                        <div class="badge-to-print bg-white p-6 rounded-lg text-center w-64 border-4 border-gray-300">
+                            <img src="https://i.imgur.com/4SmaZVt.png" crossorigin="anonymous" alt="Logo" class="mx-auto h-16 w-auto mb-4">
+                            <div class="qrcode-container mx-auto w-40 h-40 mb-4 p-2 border"></div>
+                            <h3 class="badge-employee-name text-lg font-bold text-gray-800">${employee.name}</h3>
+                            <p class="badge-employee-number text-gray-600">${numberDisplay}</p>
+                        </div>
+                    `;
+                });
+            
+                const isSingleBadge = employees.length === 1;
+                const downloadButtonText = isSingleBadge ? 'Descargar Gafete (PNG)' : 'Descargar todo en un ZIP';
+
+                allElements.badgeModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md text-center modal-enter-active">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Gafetes a Imprimir</h2>
+                        <div id="badges-container" class="flex flex-wrap justify-center gap-4 max-h-96 overflow-y-auto mb-4">
+                            ${badgesHtml}
+                        </div>
+                        <div class="mt-4 flex flex-col sm:flex-row justify-center gap-4">
+                           <button id="download-badges-button" data-single="${isSingleBadge}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">${downloadButtonText}</button>
+                           <button id="close-badge-button" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cerrar</button>
+                        </div>
+                    </div>`;
+                allElements.badgeModal.classList.remove('hidden');
+
+                const qrContainers = allElements.badgeModal.querySelectorAll('.qrcode-container');
+                qrContainers.forEach((container, index) => {
+                    new QRCode(container, {
+                        text: employees[index].internalId,
+                        width: 144,
+                        height: 144,
+                    });
+                });
+            };
+
+            const showEditEmployeeModal = (employee) => {
+                if (!allElements.editEmployeeModal) return;
+                allElements.editEmployeeModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Editar Empleado</h2>
+                        <div class="space-y-4 text-left">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Nombre Completo</label>
+                                <input type="text" id="edit-employee-name-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3" value="${employee.name}">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Número (Opcional)</label>
+                                <input type="number" id="edit-employee-number-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3" value="${employee.number || ''}">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Tipo (si no tiene número)</label>
+                                <select id="edit-employee-type-select" class="p-2 border-2 rounded-lg w-full">
+                                    <option value="">N/A</option>
+                                    <option value="Guardias" ${employee.type === 'Guardias' ? 'selected' : ''}>Guardias</option>
+                                    <option value="Limpieza" ${employee.type === 'Limpieza' ? 'selected' : ''}>Limpieza</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between gap-4">
+                            <button id="edit-cancel-btn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                            <button id="edit-save-btn" data-id="${employee.internalId}" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Guardar Cambios</button>
+                        </div>
+                    </div>`;
+                allElements.editEmployeeModal.classList.remove('hidden');
+                
+                const numberInput = document.getElementById('edit-employee-number-input');
+                const typeSelect = document.getElementById('edit-employee-type-select');
+                
+                const toggleType = () => {
+                    const hasNumber = numberInput?.value.trim() !== '';
+                    if (typeSelect) {
+                         typeSelect.disabled = hasNumber;
+                         if (hasNumber) typeSelect.value = '';
+                    }
+                };
+                
+                if (numberInput && typeSelect) {
+                    numberInput.addEventListener('input', toggleType);
+                    toggleType(); // Initial check
+                }
+            };
+            
+            const importCsv = (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const text = e.target.result;
+                    const lines = text.split('\n').filter(line => line.trim() !== '');
+                    
+                    const employeesToAdd = [];
+                    const skippedEmployees = [];
+                    const existingNumbers = new Set(appState.employeeDBs[appState.activeComedorId].map(emp => emp.number).filter(n => n));
+                    const existingNames = new Set(appState.employeeDBs[appState.activeComedorId].map(emp => emp.name).filter(n => n));
+
+                    // Ignorar la primera fila (encabezados)
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i];
+                        const [name, number, type] = line.split(',').map(s => s.trim().toUpperCase());
+                        
+                        if (!name) {
+                            skippedEmployees.push(`Fila ${i + 1}: El nombre del empleado no puede estar vacío.`);
+                            continue;
+                        }
+                        
+                        const isNumberDuplicate = number && existingNumbers.has(number);
+                        const isNameDuplicate = existingNames.has(name);
+
+                        if (isNumberDuplicate || isNameDuplicate) {
+                            if(isNumberDuplicate) {
+                                skippedEmployees.push(`Fila ${i + 1}: El número de empleado '${number}' ya existe.`);
+                            }
+                            if(isNameDuplicate) {
+                                skippedEmployees.push(`Fila ${i + 1}: El nombre '${name}' ya existe.`);
+                            }
+                            continue;
+                        }
+
+                        const newEmployee = { internalId: generateInternalId(), name, number: number || null, type: number ? null : (type || null), pin: null, lastActiveDate: new Date().toISOString() };
+                        employeesToAdd.push(newEmployee);
+                        if (number) existingNumbers.add(number);
+                        existingNames.add(name);
+                    }
+                    
+                    // Add only the valid employees
+                    if (employeesToAdd.length > 0) {
+                        appState.employeeDBs[appState.activeComedorId].push(...employeesToAdd);
+                        saveData();
+                        renderAdminTable();
+                    }
+
+                    // Provide summary feedback
+                    if (employeesToAdd.length > 0 && skippedEmployees.length === 0) {
+                        showFullscreenMessage(true, 'Importación Exitosa', `${employeesToAdd.length} empleados agregados.`);
+                    } else if (employeesToAdd.length > 0 && skippedEmployees.length > 0) {
+                        showFullscreenMessage(false, 'Importación Parcial', `${employeesToAdd.length} empleados agregados. ${skippedEmployees.length} registros fueron omitidos.`);
+                        console.warn("Registros CSV omitidos (duplicados o incompletos):", skippedEmployees);
+                    } else if (employeesToAdd.length === 0 && skippedEmployees.length > 0) {
+                        showFullscreenMessage(false, 'Importación Fallida', `No se pudo agregar ningún empleado. ${skippedEmployees.length} registros fueron omitidos.`);
+                        console.error("Registros CSV omitidos (duplicados o incompletos):", skippedEmployees);
+                    } else {
+                         showFullscreenMessage(false, 'Importación Fallida', `No se encontró ningún registro válido en el archivo.`);
+                    }
+                    
+                    setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 5000);
+                };
+                reader.onerror = () => {
+                    showFullscreenMessage(false, 'Error', 'No se pudo leer el archivo.');
+                    setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 3000);
+                };
+                reader.readAsText(file);
+            };
+
+            const exportToCsv = (filename, dataRows) => {
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += dataRows.map(e => e.join(",")).join("\n");
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri); link.setAttribute("download", filename);
+                document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            };
+            
+            const generateInternalId = () => Math.random().toString(36).substring(2, 10);
+
+            // --- MANEJADORES DE EVENTOS ---
+            document.body.addEventListener('click', e => {
+                startAudio();
+                if (!e.target.closest('.actions-button')) {
+                    document.querySelectorAll('.actions-dropdown').forEach(d => {
+                        if (d) {
+                            d.classList.add('hidden');
+                        }
+                    });
+                }
+            }, false);
+
+            if (allElements.showComedorSelectorButton) {
+                allElements.showComedorSelectorButton.addEventListener('click', () => {
+                    if(!tabletConfig.activeComedorId) {
+                        showComedorSelectorModal();
+                    }
+                });
+            }
+            
+            if (allElements.showAdminLoginButton) {
+                allElements.showAdminLoginButton.addEventListener('click', () => {
+                    showAdminPasswordModal(() => {
+                        switchPage('admin-dashboard-page');
+                        switchAdminPage('admin-gestion-page');
+                    });
+                });
+            }
+
+            if (allElements.adminComedorSelector) {
+                allElements.adminComedorSelector.addEventListener('change', (e) => {
+                    appState.activeComedorId = e.target.value;
+                    saveData();
+                    renderAll();
+                });
+            }
+
+            if (allElements.comedorPasswordModal) {
+                 allElements.comedorPasswordModal.addEventListener('click', e => {
+                     if (e.target.id === 'comedor-password-confirm') {
+                         const pass = document.getElementById('comedor-password-input')?.value;
+                         if (pass === COMEDOR_PASSWORD) {
+                             allElements.comedorPasswordModal.classList.add('hidden');
+                             showComedorSelectorModal();
+                         } else {
+                             showFullscreenMessage(false, 'Error', 'Contraseña incorrecta.');
+                             setTimeout(() => {
+                                allElements.fullscreenMessageContainer.classList.add('hidden');
+                                allElements.comedorPasswordModal.classList.add('hidden');
+                             }, 2000);
+                         }
+                     }
+                     if (e.target.id === 'comedor-password-cancel') {
+                         allElements.comedorPasswordModal.classList.add('hidden');
+                     }
+                 });
+            }
+
+            if (allElements.comedorSelectorModal) {
+                allElements.comedorSelectorModal.addEventListener('click', async e => {
+                    if (e.target.id === 'close-comedor-selector-modal') {
+                        allElements.comedorSelectorModal.classList.add('hidden');
+                    }
+                    if (e.target.id === 'comedor-selector-modal-select') {
+                        const newComedorId = e.target.value;
+                        await updateDoc(tabletConfigRef, { activeComedorId: newComedorId });
+                        allElements.comedorSelectorModal.classList.add('hidden');
+                    }
+                });
+            }
+            
+            if (allElements.employeeSearchInput) {
+                allElements.employeeSearchInput.addEventListener('input', (e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    if (allElements.searchResultsContainer) {
+                        allElements.searchResultsContainer.innerHTML = '';
+                        if (searchTerm.length < 2) {
+                            allElements.searchResultsContainer.classList.add('hidden');
+                            return;
+                        }
+                        
+                        const activeComedorDB = appState.employeeDBs[appState.activeComedorId] || [];
+                        
+                        const filtered = activeComedorDB.filter(emp => emp.name.toLowerCase().includes(searchTerm) || (emp.number && emp.number.startsWith(searchTerm)));
+                        
+                        if (filtered.length > 0) {
+                             allElements.searchResultsContainer.classList.remove('hidden');
+                             filtered.slice(0, 10).forEach(employee => {
+                                 const item = document.createElement('div');
+                                 item.className = 'p-3 hover:bg-gray-100 cursor-pointer border-b';
+                                 const typeDisplay = employee.type ? ` (${employee.type})` : '';
+                                 item.textContent = `${employee.name}${typeDisplay}`;
+                                 item.dataset.internalId = employee.internalId;
+                                 item.dataset.comedorId = appState.activeComedorId;
+                                 allElements.searchResultsContainer.appendChild(item);
+                             });
+                         } else {
+                             allElements.searchResultsContainer.classList.add('hidden');
+                         }
+                    }
+                });
+            }
+            
+            if (allElements.searchResultsContainer) {
+                allElements.searchResultsContainer.addEventListener('click', (e) => {
+                    const target = e.target.closest('[data-internal-id]');
+                    if (target) {
+                        const { internalId, comedorId } = target.dataset;
+                        const db = appState.employeeDBs[comedorId] || [];
+                        const employee = db.find(emp => emp.internalId === internalId);
+                        if (employee) {
+                            // En búsqueda manual, isQrScan es siempre false
+                            showConfirmationModal(employee, comedorId, false);
+                            if (allElements.employeeSearchInput) allElements.employeeSearchInput.value = '';
+                            if (allElements.searchResultsContainer) {
+                                allElements.searchResultsContainer.innerHTML = '';
+                                allElements.searchResultsContainer.classList.add('hidden');
+                            }
+                        }
+                    }
+                });
+            }
+
+            const handleSearchSubmit = () => {
+                if (!allElements.employeeSearchInput || !appState.activeComedorId) return;
+                const searchTerm = allElements.employeeSearchInput.value.trim();
+                if (searchTerm === '') {
+                    showFullscreenMessage(false, 'Error', 'Por favor, ingrese un dato.');
+                    setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                    return;
+                }
+
+                const activeComedorDB = appState.employeeDBs[appState.activeComedorId] || [];
+                // Se busca el empleado por internalId (asumiendo que un escáner de QR lo introduce) o por número/nombre
+                let foundEmployee = activeComedorDB.find(emp => emp.internalId === searchTerm);
+                let isQrScan = !!foundEmployee;
+
+                if (!foundEmployee) {
+                    foundEmployee = activeComedorDB.find(emp => emp.number === searchTerm || emp.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                }
+                
+                if (foundEmployee) {
+                    showConfirmationModal(foundEmployee, appState.activeComedorId, isQrScan);
+                } else {
+                    showFullscreenMessage(false, 'Error', 'Empleado no encontrado');
+                    setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                }
+            };
+
+            if (allElements.submitButton) {
+                allElements.submitButton.addEventListener('click', handleSearchSubmit);
+            }
+            if (allElements.employeeSearchInput) {
+                allElements.employeeSearchInput.addEventListener('keyup', e => {
+                    if (e.key === 'Enter') {
+                        handleSearchSubmit();
+                    }
+                });
+            }
+
+            if (allElements.adminPasswordModal) {
+                allElements.adminPasswordModal.addEventListener('click', e => {
+                    if (e.target.id === 'admin-password-confirm') {
+                        const pass = document.getElementById('admin-password-input')?.value;
+                        if (pass === ADMIN_PASSWORD) {
+                            allElements.adminPasswordModal.classList.add('hidden');
+                            if (onPasswordSuccess) onPasswordSuccess();
+                        } else { 
+                            showFullscreenMessage(false, 'Error', 'Contraseña incorrecta.');
+                            setTimeout(() => allElements.adminPasswordModal.classList.add('hidden'), 2000);
+                            setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        }
+                    }
+                    if (e.target.id === 'admin-password-cancel') allElements.adminPasswordModal.classList.add('hidden');
+                    if (e.target.id === 'rename-confirm-btn') {
+                         const comedorId = e.target.dataset.id;
+                         const input = document.getElementById('rename-comedor-input');
+                         const newName = input?.value.trim();
+
+                         if (newName) {
+                             const comedor = appState.comedores.find(c => c.id === comedorId);
+                             if (comedor) {
+                                 comedor.name = newName;
+                                 saveData();
+                                 renderAll();
+                                 allElements.adminPasswordModal.classList.add('hidden');
+                             }
+                         } else {
+                             showFullscreenMessage(false, 'Error', 'El nombre no puede estar vacío.');
+                             setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                         }
+                    }
+                    if (e.target.id === 'rename-cancel-btn') allElements.adminPasswordModal.classList.add('hidden');
+                });
+            }
+            
+            if (allElements.requirePinToggle) {
+                allElements.requirePinToggle.addEventListener('change', (e) => {
+                    const activeComedor = appState.comedores.find(c => c.id === appState.activeComedorId);
+                    if (activeComedor) {
+                        activeComedor.requirePin = e.target.checked;
+                        saveData();
+                    }
+                });
+            }
+
+
+            if (allElements.newEmployeeIdInput) {
+                 allElements.newEmployeeIdInput.addEventListener('input', () => {
+                    const hasNumber = allElements.newEmployeeIdInput.value.trim() !== '';
+                    if (allElements.newEmployeeType) {
+                        allElements.newEmployeeType.disabled = hasNumber;
+                        if (hasNumber) allElements.newEmployeeType.value = '';
+                    }
+                });
+            }
+
+            if (allElements.addEmployeeButton) {
+                allElements.addEmployeeButton.addEventListener('click', () => {
+                    const name = allElements.newEmployeeNameInput.value.trim().toUpperCase();
+                    const number = allElements.newEmployeeIdInput.value.trim();
+                    const type = allElements.newEmployeeType.value;
+
+                    if (name) {
+                        // Se agrega el campo lastActiveDate al crear un nuevo empleado
+                        const newEmployee = { internalId: generateInternalId(), name, number: number || null, type: number ? null : (type || null), pin: null, lastActiveDate: new Date().toISOString() };
+                        appState.employeeDBs[appState.activeComedorId].push(newEmployee);
+                        saveData();
+                        if (allElements.newEmployeeIdInput) allElements.newEmployeeIdInput.value = ''; 
+                        if (allElements.newEmployeeNameInput) allElements.newEmployeeNameInput.value = '';
+                        if (allElements.newEmployeeType) allElements.newEmployeeType.value = '';
+                        if (allElements.newEmployeeType) allElements.newEmployeeType.disabled = false;
+                        renderAdminTable();
+                    } else { showFullscreenMessage(false, 'Error', 'El campo de nombre es obligatorio.'); }
+                });
+            }
+
+            if (allElements.adminEmployeeSearch) {
+                allElements.adminEmployeeSearch.addEventListener('keyup', (e) => {
+                    renderAdminTable(e.target.value);
+                });
+            }
+            
+            if (allElements.adminTableContainer) {
+                allElements.adminTableContainer.addEventListener('click', e => {
+                    const target = e.target;
+                    const actionsButton = target.closest('.actions-button');
+                    
+                    if (actionsButton) {
+                        e.stopPropagation();
+                        const dropdown = actionsButton.nextElementSibling;
+                        document.querySelectorAll('.actions-dropdown').forEach(d => {
+                            if (d) {
+                                d.classList.add('hidden');
+                            }
+                        });
+                        if (dropdown) dropdown.classList.toggle('hidden');
+                        return;
+                    }
+
+                    const internalId = target.closest('[data-id]')?.dataset.id;
+                    if (!internalId) return;
+
+                    const db = appState.employeeDBs[appState.activeComedorId];
+                    const employee = db.find(emp => emp.internalId === internalId);
+                    if (!employee) return;
+
+                    if (target.closest('.delete-employee-button')) {
+                         showDeleteEmployeeModal(employee);
+                    } else if (target.closest('.reset-pin-button')) {
+                        showAdminPasswordModal(() => {
+                            employee.pin = null;
+                            saveData();
+                            renderAdminTable(allElements.adminEmployeeSearch.value);
+                            showFullscreenMessage(true, 'PIN Reseteado', `El PIN para ${employee.name} ha sido reseteado.`);
+                            setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        });
+                    } else if (target.closest('.generate-badge-button')) {
+                        showBadgeModal([employee]);
+                    } else if (target.closest('.edit-employee-button')) {
+                        showEditEmployeeModal(employee);
+                    }
+
+                    const openDropdown = target.closest('.actions-dropdown');
+                    if (openDropdown) {
+                        openDropdown.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // Listener para la nueva tabla de inactivos
+            if (allElements.inactiveEmployeesContainer) {
+                allElements.inactiveEmployeesContainer.addEventListener('click', e => {
+                    const deleteButton = e.target.closest('.delete-inactive-button');
+                    if (deleteButton) {
+                        const internalId = deleteButton.dataset.id;
+                        const db = appState.employeeDBs[appState.activeComedorId];
+                        const employee = db.find(emp => emp.internalId === internalId);
+                        if (employee) {
+                            showDeleteEmployeeModal(employee);
+                        }
+                    }
+                });
+            }
+
+            // NUEVO: Listener para el botón de editar y eliminar en la tabla de dispositivos
+            if (allElements.devicesContainer) {
+                allElements.devicesContainer.addEventListener('click', async e => {
+                    const deleteButton = e.target.closest('.delete-device-button');
+                    const editButton = e.target.closest('.edit-device-button');
+
+                    if (deleteButton) {
+                        const deviceId = deleteButton.dataset.id;
+                        showDeleteDeviceModal(deviceId);
+                    }
+                    if (editButton) {
+                        const deviceId = editButton.dataset.id;
+                        const nickname = editButton.dataset.nickname;
+                        const activeComedorId = editButton.dataset.comedorId;
+                        showEditDeviceModal(deviceId, nickname, activeComedorId);
+                    }
+                });
+            }
+
+            // NUEVO: Función para mostrar el modal de edición de dispositivo
+            const showEditDeviceModal = (deviceId, nickname, activeComedorId) => {
+                if (!allElements.editDeviceModal) return;
+                
+                let comedorOptions = '';
+                appState.comedores.forEach(comedor => {
+                    const isSelected = comedor.id === activeComedorId ? 'selected' : '';
+                    comedorOptions += `<option value="${comedor.id}" ${isSelected}>${comedor.name}</option>`;
+                });
+                
+                allElements.editDeviceModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Editar Dispositivo</h2>
+                        <div class="space-y-4 text-left">
+                            <p class="text-gray-600">ID: ${deviceId.substring(0, 8)}</p>
+                            <div>
+                                <label for="edit-device-nickname-input" class="block text-gray-700 text-sm font-bold mb-2">Sobrenombre</label>
+                                <input type="text" id="edit-device-nickname-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Sobrenombre del dispositivo" value="${nickname !== 'Sin sobrenombre' ? nickname : ''}">
+                            </div>
+                            <div>
+                                <label for="edit-device-comedor-select" class="block text-gray-700 text-sm font-bold mb-2">Comedor Asignado</label>
+                                <select id="edit-device-comedor-select" class="p-3 border-2 border-gray-200 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    ${comedorOptions}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between gap-4">
+                            <button id="edit-device-cancel-btn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                            <button id="edit-device-save-btn" data-id="${deviceId}" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Guardar</button>
+                        </div>
+                    </div>`;
+                allElements.editDeviceModal.classList.remove('hidden');
+                document.getElementById('edit-device-nickname-input')?.focus();
+            };
+
+            // Listener para el modal de edición de dispositivo
+            if (allElements.editDeviceModal) {
+                allElements.editDeviceModal.addEventListener('click', async e => {
+                    if (e.target.id === 'edit-device-save-btn') {
+                        const deviceId = e.target.dataset.id;
+                        const nickname = document.getElementById('edit-device-nickname-input')?.value.trim();
+                        const newComedorId = document.getElementById('edit-device-comedor-select')?.value;
+                        try {
+                            const deviceRef = doc(db, "tabletConfigs", deviceId);
+                            await updateDoc(deviceRef, {
+                                nickname: nickname || 'Sin sobrenombre',
+                                activeComedorId: newComedorId
+                            });
+                            showFullscreenMessage(true, 'Guardado', `Dispositivo actualizado.`);
+                        } catch (error) {
+                            console.error("Error updating device nickname:", error);
+                            showFullscreenMessage(false, 'Error', 'No se pudo actualizar el dispositivo.');
+                        } finally {
+                            allElements.editDeviceModal.classList.add('hidden');
+                            setTimeout(() => {
+                                allElements.fullscreenMessageContainer.classList.add('hidden');
+                                renderDevicesTable();
+                            }, 2000);
+                        }
+                    }
+                    if (e.target.id === 'edit-device-cancel-btn') {
+                        allElements.editDeviceModal.classList.add('hidden');
+                    }
+                });
+            }
+
+            // Función y listener para el modal de eliminación de dispositivos
+            const showDeleteDeviceModal = (deviceId) => {
+                if (!allElements.deleteDeviceModal) return;
+                allElements.deleteDeviceModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active">
+                        <h2 class="text-2xl font-bold text-red-700 mb-4">Confirmar Eliminación</h2>
+                        <p class="text-gray-600 mb-6">¿Estás seguro de que quieres eliminar este dispositivo (${deviceId.substring(0, 8)})? Esta acción no se puede deshacer.</p>
+                        <input type="password" id="delete-device-password-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3 mb-4" placeholder="Contraseña de administrador">
+                        <div class="flex justify-between gap-4">
+                            <button id="delete-device-cancel-btn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                            <button id="delete-device-confirm-btn" data-id="${deviceId}" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg">Eliminar</button>
+                        </div>
+                    </div>`;
+                allElements.deleteDeviceModal.classList.remove('hidden');
+                document.getElementById('delete-device-password-input')?.focus();
+            };
+
+            if (allElements.deleteDeviceModal) {
+                 allElements.deleteDeviceModal.addEventListener('click', async e => {
+                    if (e.target.id === 'delete-device-confirm-btn') {
+                        const pass = document.getElementById('delete-device-password-input')?.value;
+                        if (pass === ADMIN_PASSWORD) {
+                            const deviceId = e.target.dataset.id;
+                            try {
+                                await deleteDoc(doc(db, "tabletConfigs", deviceId));
+                                console.log("Documento eliminado correctamente.");
+                                showFullscreenMessage(true, 'Dispositivo Eliminado', `El dispositivo ${deviceId.substring(0, 8)} ha sido eliminado.`);
+                            } catch (error) {
+                                console.error("Error deleting device config:", error);
+                                showFullscreenMessage(false, 'Error', 'No se pudo eliminar el dispositivo.');
+                            } finally {
+                                allElements.deleteDeviceModal.classList.add('hidden');
+                                setTimeout(() => {
+                                    allElements.fullscreenMessageContainer.classList.add('hidden');
+                                    renderDevicesTable();
+                                }, 2000);
+                            }
+                        } else {
+                            showFullscreenMessage(false, 'Error', 'Contraseña incorrecta.');
+                            setTimeout(() => {
+                                allElements.deleteDeviceModal.classList.add('hidden');
+                                allElements.fullscreenMessageContainer.classList.add('hidden');
+                            }, 2000);
+                        }
+                    }
+                    if (e.target.id === 'delete-device-cancel-btn') {
+                        allElements.deleteDeviceModal.classList.add('hidden');
+                    }
+                });
+            }
+
+            // NUEVO: Función para mostrar el modal de eliminación de todos los dispositivos
+            const showDeleteAllDevicesModal = () => {
+                if (!allElements.deleteAllDevicesModal) return;
+                allElements.deleteAllDevicesModal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center modal-enter-active">
+                        <h2 class="text-2xl font-bold text-red-700 mb-4">¡ALERTA!</h2>
+                        <p class="text-gray-600 mb-6">¿Estás seguro de que quieres eliminar TODOS los dispositivos? Esta acción es irreversible.</p>
+                        <input type="password" id="delete-all-devices-password-input" class="shadow-inner border-2 rounded-lg w-full py-2 px-3 mb-4" placeholder="Contraseña de administrador">
+                        <div class="flex justify-between gap-4">
+                            <button id="delete-all-devices-cancel-btn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                            <button id="delete-all-devices-confirm-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg">Eliminar TODO</button>
+                        </div>
+                    </div>`;
+                allElements.deleteAllDevicesModal.classList.remove('hidden');
+                document.getElementById('delete-all-devices-password-input')?.focus();
+            };
+
+            // NUEVO: Listener para el botón de eliminar todos los dispositivos
+            if (allElements.deleteAllDevicesButton) {
+                allElements.deleteAllDevicesButton.addEventListener('click', () => {
+                    showDeleteAllDevicesModal();
+                });
+            }
+
+            // NUEVO: Listener para el modal de confirmación de "eliminar todos"
+            if (allElements.deleteAllDevicesModal) {
+                 allElements.deleteAllDevicesModal.addEventListener('click', async e => {
+                    if (e.target.id === 'delete-all-devices-confirm-btn') {
+                        const pass = document.getElementById('delete-all-devices-password-input')?.value;
+                        if (pass === ADMIN_PASSWORD) {
+                            try {
+                                const devicesSnapshot = await getDocs(collection(db, "tabletConfigs"));
+                                const batch = writeBatch(db);
+                                devicesSnapshot.forEach(doc => {
+                                    batch.delete(doc.ref);
+                                });
+                                await batch.commit();
+                                showFullscreenMessage(true, 'Eliminados', 'Todos los dispositivos han sido eliminados.');
+                            } catch (error) {
+                                console.error("Error deleting all devices:", error);
+                                showFullscreenMessage(false, 'Error', 'No se pudo eliminar todos los dispositivos.');
+                            } finally {
+                                allElements.deleteAllDevicesModal.classList.add('hidden');
+                                setTimeout(() => {
+                                    allElements.fullscreenMessageContainer.classList.add('hidden');
+                                    renderDevicesTable();
+                                }, 2000);
+                            }
+                        } else {
+                            showFullscreenMessage(false, 'Error', 'Contraseña incorrecta.');
+                            setTimeout(() => {
+                                allElements.deleteAllDevicesModal.classList.add('hidden');
+                                allElements.fullscreenMessageContainer.classList.add('hidden');
+                            }, 2000);
+                        }
+                    }
+                    if (e.target.id === 'delete-all-devices-cancel-btn') {
+                        allElements.deleteAllDevicesModal.classList.add('hidden');
+                    }
+                });
+            }
+            
+            if (allElements.generateBulkBadgesButton) {
+                allElements.generateBulkBadgesButton.addEventListener('click', () => {
+                    const selectedCheckboxes = allElements.adminTableContainer.querySelectorAll('.employee-checkbox:checked');
+                    if (selectedCheckboxes.length === 0) {
+                        showFullscreenMessage(false, 'Error', 'Selecciona al menos un empleado para generar gafetes.');
+                        setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        return;
+                    }
+                    const selectedEmployees = Array.from(selectedCheckboxes).map(cb => {
+                        const employeeId = cb.dataset.id;
+                        return appState.employeeDBs[appState.activeComedorId].find(emp => emp.internalId === employeeId);
+                    });
+                    showBadgeModal(selectedEmployees);
+                });
+            }
+
+            if (allElements.deleteEmployeeModal) {
+                allElements.deleteEmployeeModal.addEventListener('click', (e) => {
+                    if (e.target.id === 'delete-confirm-btn') {
+                        const pass = document.getElementById('delete-password-input')?.value;
+                        if (pass === ADMIN_PASSWORD) {
+                             const internalId = e.target.dataset.id;
+                             const db = appState.employeeDBs[appState.activeComedorId];
+                             const employee = db.find(emp => emp.internalId === internalId);
+                             appState.employeeDBs[appState.activeComedorId] = db.filter(emp => emp.internalId !== internalId);
+                             saveData(); 
+                             renderAdminTable(allElements.adminEmployeeSearch.value);
+                             renderInactiveEmployeesTable(); // Renderiza la nueva tabla
+                             allElements.deleteEmployeeModal.classList.add('hidden');
+                             showFullscreenMessage(true, 'Empleado Eliminado', `Se ha eliminado a ${employee.name}.`);
+                             setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        } else {
+                            showFullscreenMessage(false, 'Error', 'Contraseña incorrecta.');
+                            setTimeout(() => allElements.deleteEmployeeModal.classList.add('hidden'), 2000);
+                            setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        }
+                    }
+                    if (e.target.id === 'delete-cancel-btn') {
+                        allElements.deleteEmployeeModal.classList.add('hidden');
+                    }
+                });
+            }
+            
+            if (allElements.confirmationModal) {
+                allElements.confirmationModal.addEventListener('click', e => {
+                    const confirmBtn = e.target.closest('#modal-confirm-btn');
+                    if (confirmBtn) {
+                        const { internalId, comedorId, isQr } = confirmBtn.dataset;
+                        const isQrScan = isQr === 'true';
+                        const db = appState.employeeDBs[comedorId];
+                        const employee = db.find(emp => emp.internalId === internalId);
+                        const activeComedor = appState.comedores.find(c => c.id === comedorId);
+
+                        if (employee) {
+                            // Lógica mejorada: el PIN siempre es requerido para búsqueda manual, 
+                            // y para QR si la opción está activada.
+                            const isPinRequired = (isQrScan && activeComedor.requirePin) || !isQrScan;
+                            
+                            if (isPinRequired) {
+                                if (employee.pin) {
+                                    showPinModal(false, employee, comedorId);
+                                } else {
+                                    showPinModal(true, employee, comedorId);
+                                }
+                            } else {
+                                // Si no se requiere PIN (solo para QR con la opción desactivada), se procede al registro
+                                registerConsumption(employee, comedorId);
+                            }
+                        }
+                    }
+                    if (e.target.id === 'modal-cancel-btn') {
+                        allElements.confirmationModal.classList.add('hidden');
+                        resetMainView();
+                    }
+                    if (e.target.id === 'pin-cancel-btn') {
+                        allElements.confirmationModal.classList.add('hidden');
+                        resetMainView();
+                    }
+
+                    const pinConfirmBtn = e.target.closest('#pin-confirm-btn');
+                    if(pinConfirmBtn) {
+                        const internalId = pinConfirmBtn.dataset.internalId;
+                        const isCreating = pinConfirmBtn.dataset.isCreating === 'true';
+                        const pinInput = document.getElementById('pin-input')?.value;
+                        const db = appState.employeeDBs[pinConfirmBtn.dataset.comedorId];
+                        const employee = db.find(emp => emp.internalId === internalId);
+
+                        if (isCreating) {
+                            if (pinInput && pinInput.length === 4 && /^\d{4}$/.test(pinInput)) {
+                                employee.pin = pinInput;
+                                saveData();
+                                registerConsumption(employee, pinConfirmBtn.dataset.comedorId);
+                            } else {
+                                showFullscreenMessage(false, 'Error', "El PIN debe ser de 4 dígitos numéricos.");
+                                setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 3000);
+                            }
+                        } else {
+                            if (pinInput === employee.pin) {
+                                registerConsumption(employee, pinConfirmBtn.dataset.comedorId);
+                            } else {
+                                showFullscreenMessage(false, 'Error', "PIN incorrecto. Intente de nuevo.");
+                                setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 3000);
+                            }
+                        }
+                    }
+                });
+            }
+
+            const registerConsumption = (employee, comedorId) => {
+                const dayName = daysOfWeek[new Date().getDay()];
+                const log = appState.consumptionLogs[comedorId];
+                if (!log[employee.internalId]) log[employee.internalId] = {};
+                const currentCount = log[employee.internalId][dayName] || 0;
+                log[employee.internalId][dayName] = currentCount + 1;
+                
+                // Se actualiza la fecha de última actividad
+                const employeeDb = appState.employeeDBs[comedorId];
+                const activeEmployee = employeeDb.find(emp => emp.internalId === employee.internalId);
+                if (activeEmployee) {
+                    activeEmployee.lastActiveDate = new Date().toISOString();
+                }
+
+                saveData();
+                if (allElements.confirmationModal) allElements.confirmationModal.classList.add('hidden');
+                const comedor = appState.comedores.find(c => c.id === comedorId);
+                showFullscreenMessage(true, '¡Validado!', `Registrado en ${comedor.name}`);
+                setTimeout(resetMainView, 2000);
+            };
+
+            if (allElements.comedorSelectorModal) {
+                allElements.comedorSelectorModal.addEventListener('click', e => {
+                    if (e.target.id === 'close-comedor-selector-modal') {
+                        allElements.comedorSelectorModal.classList.add('hidden');
+                    }
+                    if (e.target.id === 'comedor-selector-modal-select') {
+                        appState.activeComedorId = e.target.value;
+                        saveData();
+                        renderAll();
+                    }
+                });
+            }
+
+            if (allElements.comedorPasswordModal) {
+                 allElements.comedorPasswordModal.addEventListener('click', e => {
+                     if (e.target.id === 'comedor-password-confirm') {
+                         const pass = document.getElementById('comedor-password-input')?.value;
+                         if (pass === COMEDOR_PASSWORD) {
+                             allElements.comedorPasswordModal.classList.add('hidden');
+                             showComedorSelectorModal();
+                         } else {
+                             showFullscreenMessage(false, 'Error', 'Contraseña incorrecta.');
+                             setTimeout(() => {
+                                allElements.fullscreenMessageContainer.classList.add('hidden');
+                                allElements.comedorPasswordModal.classList.add('hidden');
+                             }, 2000);
+                         }
+                     }
+                     if (e.target.id === 'comedor-password-cancel') {
+                         allElements.comedorPasswordModal.classList.add('hidden');
+                     }
+                 });
+            }
+
+            if (allElements.badgeModal) {
+                 allElements.badgeModal.addEventListener('click', async e => {
+                    const downloadButton = e.target.closest('#download-badges-button');
+                    if(downloadButton) {
+                        const isSingleBadge = downloadButton.dataset.single === 'true';
+                        
+                        if (isSingleBadge) {
+                            const badgeElement = document.querySelector('.badge-to-print');
+                            const employeeName = badgeElement?.querySelector('.badge-employee-name')?.textContent || 'gafete_individual';
+                            if (badgeElement) {
+                                html2canvas(badgeElement, { useCORS: true }).then(canvas => {
+                                    const link = document.createElement('a');
+                                    link.download = `gafete-${employeeName.replace(/\s+/g, '_')}.png`;
+                                    link.href = canvas.toDataURL('image/png');
+                                    link.click();
+                                });
+                                showFullscreenMessage(true, 'Descarga Completa', 'Se ha descargado el gafete.');
+                                setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                            }
+                        } else {
+                            const zip = new JSZip();
+                            const badges = document.querySelectorAll('.badge-to-print');
+                            
+                            showFullscreenMessage(true, 'Generando ZIP', 'Esto puede tardar unos segundos...');
+                            
+                            for (let i = 0; i < badges.length; i++) {
+                                const badgeElement = badges[i];
+                                const employeeName = badgeElement.querySelector('.badge-employee-name')?.textContent || `empleado_${i+1}`;
+                                
+                                const canvas = await html2canvas(badgeElement, { useCORS: true });
+                                const base64image = canvas.toDataURL('image/png').split(';base64,')[1];
+                                zip.file(`gafete-${employeeName.replace(/\s+/g, '_')}.png`, base64image, {base64: true});
+                            }
+
+                            zip.generateAsync({type:"blob"}).then(function(content) {
+                                saveAs(content, "gafetes.zip");
+                                showFullscreenMessage(true, 'Descarga Completa', 'Se ha descargado el archivo ZIP con todos los gafetes.');
+                                setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 3000);
+                            }).catch(error => {
+                                console.error('Error generating ZIP:', error);
+                                showFullscreenMessage(false, 'Error', 'No se pudo generar el archivo ZIP. Inténtalo de nuevo.');
+                                setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 3000);
+                            });
+                        }
+                        allElements.badgeModal.classList.add('hidden');
+                    }
+                    if(e.target.id === 'close-badge-button') {
+                        allElements.badgeModal.classList.add('hidden');
+                    }
+                });
+            }
+
+
+            if (allElements.clearLogButton) {
+                allElements.clearLogButton.addEventListener('click', () => {
+                    showAdminPasswordModal(() => {
+                        appState.consumptionLogs[appState.activeComedorId] = {};
+                        saveData(); renderCurrentLogTable();
+                        showFullscreenMessage(true, 'Limpiado', 'Registros de la semana actual limpiados.');
+                        setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                    });
+                });
+            }
+
+            if (allElements.saveWeekButton) {
+                allElements.saveWeekButton.addEventListener('click', () => {
+                    showAdminPasswordModal(() => {
+                        const currentLog = appState.consumptionLogs[appState.activeComedorId];
+                        if (Object.keys(currentLog).length === 0) { showFullscreenMessage(false, 'Error', "No hay datos en la semana actual para guardar."); setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000); return; }
+                        
+                        const history = appState.consumptionHistories[appState.activeComedorId];
+                        const weekId = getWeekId(new Date());
+                        const existingRecordIndex = history.findIndex(record => record.weekId === weekId);
+
+                        if (existingRecordIndex > -1) {
+                            const existingRecord = history[existingRecordIndex];
+                            for (const employeeId in currentLog) {
+                                if (!existingRecord.log[employeeId]) {
+                                    existingRecord.log[employeeId] = {};
+                                }
+                                for (const day in currentLog[employeeId]) {
+                                    existingRecord.log[employeeId][day] = (existingRecord.log[employeeId][day] || 0) + currentLog[employeeId][day];
+                                }
+                            }
+                            existingRecord.date = new Date().toISOString();
+                            showFullscreenMessage(true, 'Actualizado', 'Consumos de esta semana actualizados en el historial.');
+                            setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        } else {
+                            history.push({ weekId: weekId, date: new Date().toISOString(), log: currentLog });
+                            showFullscreenMessage(true, 'Guardado', 'Semana guardada en el historial.');
+                            setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        }
+                        
+                        appState.consumptionLogs[appState.activeComedorId] = {};
+                        saveData();
+                        renderCurrentLogTable();
+                        renderHistory();
+                    });
+                });
+            }
+
+            if (allElements.historyContainer) {
+                allElements.historyContainer.addEventListener('click', (e) => {
+                    const deleteButton = e.target.closest('.delete-history-record-button');
+                    if (deleteButton) {
+                        const indexToDelete = deleteButton.dataset.index;
+                        showAdminPasswordModal(() => {
+                            appState.consumptionHistories[appState.activeComedorId].splice(indexToDelete, 1);
+                            saveData(); renderHistory();
+                            showFullscreenMessage(true, 'Eliminado', 'Registro del historial eliminado.');
+                            setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        });
+                    }
+                });
+            }
+
+            if (document.getElementById('comedores-management-container')) {
+                document.getElementById('comedores-management-container').addEventListener('click', e => {
+                    const renameBtn = e.target.closest('.rename-comedor-button');
+                    const deleteBtn = e.target.closest('.delete-comedor-button');
+
+                    if (renameBtn) {
+                        const comedorId = renameBtn.dataset.id;
+                        const comedor = appState.comedores.find(c => c.id === comedorId);
+                        if(comedor) showRenameModal(comedorId, comedor.name);
+                    }
+
+                    if (deleteBtn) {
+                        const comedorId = deleteBtn.dataset.id;
+                        if (appState.comedores.length <= 1) {
+                            showFullscreenMessage(false, 'Error', "No se puede eliminar el último comedor.");
+                            setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                            return;
+                        }
+                        showAdminPasswordModal(() => {
+                            appState.comedores = appState.comedores.filter(c => c.id !== comedorId);
+                            delete appState.employeeDBs[comedorId];
+                            delete appState.consumptionLogs[comedorId];
+                            delete appState.consumptionHistories[comedorId];
+                            appState.activeComedorId = appState.comedores[0].id;
+                            saveData();
+                            renderAll();
+                            showFullscreenMessage(true, 'Eliminado', 'Comedor eliminado.');
+                            setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                        });
+                    }
+                });
+            }
+            if (allElements.addComedorButton) {
+                 allElements.addComedorButton.addEventListener('click', () => {
+                    const name = allElements.newComedorNameInput?.value.trim();
+                    if (name) {
+                        const newId = crypto.randomUUID();
+                        // Se agrega la propiedad 'requirePin' al nuevo comedor
+                        appState.comedores.push({ id: newId, name, requirePin: true });
+                        appState.employeeDBs[newId] = [];
+                        appState.consumptionLogs[newId] = {};
+                        appState.consumptionHistories[newId] = [];
+                        if (allElements.newComedorNameInput) allElements.newComedorNameInput.value = '';
+                        saveData(); renderAll();
+                    }
+                });
+            }
+           
+            if (allElements.editEmployeeModal) {
+                allElements.editEmployeeModal.addEventListener('click', e => {
+                    if (e.target.id === 'edit-cancel-btn') {
+                        allElements.editEmployeeModal.classList.add('hidden');
+                    }
+                    if (e.target.id === 'edit-save-btn') {
+                        const internalId = e.target.dataset.id;
+                        const db = appState.employeeDBs[appState.activeComedorId];
+                        const employee = db.find(emp => emp.internalId === internalId);
+                        if (employee) {
+                            const newName = document.getElementById('edit-employee-name-input')?.value.trim().toUpperCase();
+                            const newNumber = document.getElementById('edit-employee-number-input')?.value.trim();
+                            const newType = document.getElementById('edit-employee-type-select')?.value;
+                            
+                            if (newName) {
+                                employee.name = newName;
+                                employee.number = newNumber;
+                                employee.type = newNumber ? '' : newType;
+                                saveData();
+                                renderAdminTable(allElements.adminEmployeeSearch?.value);
+                                allElements.editEmployeeModal.classList.add('hidden');
+                            } else {
+                                showFullscreenMessage(false, 'Error', 'El nombre no puede estar vacío.');
+                                setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000);
+                            }
+                        }
+                    }
+                });
+            }
+
+            if (allElements.importCsvButton) {
+                allElements.importCsvButton.addEventListener('click', () => {
+                    if (allElements.csvFileInput && allElements.csvFileInput.files.length > 0) {
+                        const file = allElements.csvFileInput.files[0];
+                        importCsv(file);
+                    } else {
+                        showFullscreenMessage(false, 'Error', 'Seleccione un archivo CSV para importar.');
+                    }
+                });
+            }
+
+            if (allElements.backToMainButton) {
+                allElements.backToMainButton.addEventListener('click', () => {
+                    switchPage('main-page');
+                });
+            }
+
+            if (allElements.adminNavButtons) {
+                allElements.adminNavButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        switchAdminPage(`admin-${button.dataset.adminPage}-page`);
+                    });
+                });
+            }
+
+            const getWeekId = (date = new Date()) => {
+                const d = new Date(date);
+                const day = d.getDay();
+                const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                const monday = new Date(d.setDate(diff));
+                return `${monday.getFullYear()}-${monday.getMonth() + 1}-${monday.getDate()}`;
+            };
+
+            const getWeekRange = (date = new Date()) => {
+                const monday = new Date(date);
+                const sunday = new Date(new Date(monday).setDate(monday.getDate() + 6));
+                const options = { day: 'numeric', month: 'long' };
+                const mondayStr = monday.toLocaleDateString('es-MX', options);
+                const sundayStr = sunday.toLocaleDateString('es-MX', options);
+                return `Semana del Lunes ${mondayStr} al Domingo ${sundayStr}`;
+            };
+
+            if (allElements.exportCurrentLogButton) {
+                allElements.exportCurrentLogButton.addEventListener('click', () => {
+                    const log = appState.consumptionLogs[appState.activeComedorId] || {};
+                    const db = appState.employeeDBs[appState.activeComedorId] || [];
+                    const comedorName = appState.comedores.find(c => c.id === appState.activeComedorId).name;
+                    const weekRange = getWeekRange(new Date(getWeekId(new Date()).replace(/-/g, '/')));
+                    const rows = [
+                        [`Comedor: ${comedorName}`],
+                        [weekRange],
+                        [],
+                        ["Empleado", "ID", "Tipo", ...displayDays]
+                    ];
+                    [...db].sort((a,b)=>a.name.localeCompare(b.name)).forEach(emp => {
+                        const row = [emp.name, emp.number || 'N/A', emp.type || ''];
+                        displayDays.forEach(day => row.push((log[emp.internalId] && log[emp.internalId][day]) || 0));
+                        rows.push(row);
+                    });
+                    exportToCsv(`consumo_semanal_${comedorName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`, rows);
+                });
+            }
+            
+            if (allElements.exportHistoryButton) {
+                allElements.exportHistoryButton.addEventListener('click', () => {
+                    const history = appState.consumptionHistories[appState.activeComedorId] || [];
+                    const db = appState.employeeDBs[appState.activeComedorId] || [];
+                    const comedorName = appState.comedores.find(c => c.id === appState.activeComedorId).name;
+                    if(history.length === 0) { showFullscreenMessage(false, 'Error', "No hay historial para exportar."); setTimeout(() => allElements.fullscreenMessageContainer.classList.add('hidden'), 2000); return; }
+                    const rows = [[`Historial de Consumos - Comedor: ${comedorName}`], []];
+                    const sortedEmployees = [...db].sort((a, b) => a.name.localeCompare(b.name));
+                    history.forEach(record => {
+                        const saveDateStr = new Date(record.date).toLocaleString('es-MX');
+                        const weekRange = getWeekRange(new Date(record.weekId.replace(/-/g, '/')));
+                        
+                        rows.push([`Guardado el: ${saveDateStr}`]);
+                        rows.push([weekRange]);
+                        rows.push([]);
+                        rows.push(["Empleado", "ID", "Tipo", ...displayDays]);
+                        
+                        sortedEmployees.forEach(emp => {
+                            const row = [emp.name, emp.number || 'N/A', emp.type || ''];
+                            displayDays.forEach(day => row.push((record.log[emp.internalId] && record.log[emp.internalId][day]) || 0));
+                            rows.push(row);
+                        });
+                        rows.push([]);
+                        rows.push([]);
+                    });
+                    exportToCsv(`historial_consumos_${comedorName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`, rows);
+                });
+            }
+            
+            // --- INICIALIZACIÓN ---
+            signInAnonymously(auth).then(() => {
+                loadAndListenForData();
+                listenForTabletConfig();
+            }).catch((error) => {
+                console.error("Error de autenticación con Firebase: ", error);
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.innerHTML = `<div class="text-center p-4">
+                        <h2 class="text-2xl font-bold text-red-600 mb-4">Error de Conexión</h2>
+                        <p class="text-gray-700">No se pudo conectar a la base de datos.</p>
+                        <p class="text-gray-500 mt-2">Por favor, asegúrate de haber habilitado el "Inicio de sesión anónimo" en tu consola de Firebase.</p>
+                        <p class="text-gray-500 mt-1">(Authentication -> Sign-in method -> Anónimo -> Habilitar)</p>
+                    </div>`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

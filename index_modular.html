@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Registro de Comida</title>
+
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Carga de Tone.js para los sonidos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <!-- Carga de QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- Carga de html2canvas para exportar a imagen -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Carga de JSZip para comprimir los archivos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!-- ARCHIVO CSS SEPARADO -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="bg-gray-100">
+
+    <!-- Botón flotante para el selector de comedor -->
+    <button id="show-comedor-selector-button"
+        class="fixed top-4 left-4 p-3 pr-5 bg-white text-gray-800 rounded-full shadow-lg hover:bg-gray-200 transition-colors z-30 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+        <span id="active-comedor-name" class="font-bold text-sm">Cargando...</span>
+    </button>
+
+    <!-- Botón flotante para el acceso al panel de administración -->
+    <button id="show-admin-login-button"
+        class="fixed top-4 right-4 p-3 pr-5 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors z-30 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 7a2 2 0 012 2v2a2 2 0 01-2 2m-4 0h-2M9 13H7m0 0h-2m2 0a2 2 0 01-2-2v-2a2 2 0 012-2m-4 4h10" />
+        </svg>
+        <span class="font-bold text-sm">Admin</span>
+    </button>
+
+    <!-- Indicador de Carga Inicial -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-[200] flex items-center justify-center">
+        <div class="text-xl font-bold text-gray-700">Cargando sistema...</div>
+    </div>
+
+    <div id="main-content-container">
+
+        <!-- PÁGINA 1: REGISTRO PRINCIPAL -->
+        <div id="main-page" class="page-container flex items-center justify-center p-4">
+            <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+                <img src="https://i.imgur.com/4SmaZVt.png" crossorigin="anonymous" alt="Logo de la Compañía"
+                    class="mx-auto h-36 w-auto mb-6">
+                <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">Registro de Comida</h1>
+                <p class="text-center text-gray-500 mb-6">Escanee el código QR o busque por nombre/número.</p>
+
+                <div class="mb-4 relative text-left">
+                    <label for="employeeSearch" class="block text-gray-700 text-sm font-bold mb-2">Buscar
+                        Empleado:</label>
+                    <div id="search-results-container"
+                        class="absolute bottom-full left-0 right-0 bg-white border mb-1 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto hidden">
+                    </div>
+                    <input type="text" id="employeeSearch"
+                        class="shadow-inner appearance-none border-2 border-gray-200 rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ej: Juan Perez o 12345" autocomplete="off">
+                </div>
+
+                <button id="submitButton"
+                    class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transform hover:scale-105 transition-transform duration-200">Aceptar</button>
+            </div>
+        </div>
+
+        <!-- PÁGINA 2: PANEL DE ADMINISTRADOR CON TODAS LAS FUNCIONES -->
+        <div id="admin-dashboard-page"
+            class="page-container hidden container mx-auto p-4 space-y-8 mt-24 md:mt-16 lg:mt-12">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-800">Panel de Administración</h1>
+                <button id="back-to-main-button"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cerrar</button>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-lg flex items-center justify-between">
+                <label for="admin-comedor-selector" class="font-bold text-gray-600 mr-2">Comedor Activo:</label>
+                <select id="admin-comedor-selector" class="p-2 border-2 border-gray-200 rounded-lg flex-grow"></select>
+            </div>
+
+            <!-- Pestañas de Navegación del Administrador -->
+            <div class="flex flex-wrap border-b border-gray-200">
+                <button data-admin-page="gestion"
+                    class="admin-nav-button py-2 px-4 font-semibold text-blue-600 border-b-2 border-blue-600">Gestión de
+                    Empleados</button>
+                <button data-admin-page="consumos"
+                    class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Consumos</button>
+                <button data-admin-page="historial"
+                    class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Historial</button>
+                <button data-admin-page="inactivos"
+                    class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Inactivos</button>
+                <button data-admin-page="dispositivos"
+                    class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Dispositivos</button>
+            </div>
+
+            <!-- Contenedor para las páginas del admin -->
+            <div id="admin-content-container">
+                <!-- Contenido de Gestión de Empleados -->
+                <div id="admin-gestion-page">
+                    <!-- GESTIÓN DE COMEDORES -->
+                    <div id="comedores-management-container" class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                        <h2 class="text-xl font-bold text-gray-700 mb-4">Gestionar Comedores</h2>
+                        <div id="comedores-list" class="space-y-2 mb-4"></div>
+                        <div class="flex gap-4">
+                            <input type="text" id="new-comedor-name" placeholder="Nombre del Nuevo Comedor"
+                                class="flex-grow p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button id="add-comedor-button"
+                                class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg">Crear</button>
+                        </div>
+                    </div>
+                    <!-- GESTIÓN DE EMPLEADOS -->
+                    <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-gray-700">Gestionar Empleados de <span
+                                    id="current-comedor-name" class="text-blue-600"></span></h2>
+                            <button id="generate-bulk-badges-button"
+                                class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hidden">Generar Gafetes
+                                Seleccionados</button>
+                        </div>
+
+                        <!-- Toggle para requerir PIN -->
+                        <div class="flex items-center space-x-2 mb-4">
+                            <input type="checkbox" id="require-pin-toggle"
+                                class="form-checkbox h-5 w-5 text-blue-600 rounded-lg">
+                            <label for="require-pin-toggle" class="text-gray-700 font-medium">Requerir PIN para
+                                registrarse</label>
+                        </div>
+
+                        <div class="grid md:grid-cols-3 gap-4 mb-6">
+                            <input type="number" id="new-employee-id" placeholder="Número (Opcional)"
+                                class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <input type="text" id="new-employee-name" placeholder="Nombre Completo"
+                                class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <select id="new-employee-type"
+                                class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Tipo (Opcional)</option>
+                                <option value="Guardias">Guardias</option>
+                                <option value="Limpieza">Limpieza</option>
+                            </select>
+                            <button id="add-employee-button"
+                                class="md:col-span-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Agregar
+                                Empleado</button>
+                        </div>
+                        <div class="mb-4">
+                            <input type="text" id="admin-employee-search"
+                                placeholder="Buscar empleado por nombre o número..."
+                                class="w-full p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div id="admin-table-container" class="overflow-x-auto"></div>
+                    </div>
+                    <!-- IMPORTAR EMPLEADOS -->
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h2 class="text-xl font-bold text-gray-700 mb-4">Importar Empleados (CSV)</h2>
+                        <div class="flex flex-col md:flex-row gap-4 mb-4">
+                            <label class="block w-full">
+                                <span class="sr-only">Elegir archivo CSV</span>
+                                <input type="file" id="csv-file-input" accept=".csv"
+                                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                            </label>
+                            <button id="import-csv-button"
+                                class="w-full md:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">Importar
+                                CSV</button>
+                        </div>
+                        <div id="import-status-container" class="mt-4 text-sm"></div>
+                    </div>
+                </div>
+
+                <!-- Contenido de Consumos -->
+                <div id="admin-consumos-page" class="hidden">
+                    <div class="flex flex-wrap gap-4 justify-between items-center mb-6">
+                        <h1 class="text-3xl font-bold text-gray-800">Consumos de la Semana Actual</h1>
+                        <div id="consumption-summary" class="bg-white p-4 rounded-lg shadow-md text-sm"></div>
+                        <div class="flex flex-wrap gap-2">
+                            <button id="export-current-log-button"
+                                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Exportar
+                                a Excel</button>
+                            <button id="save-week-button"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Guardar
+                                Semana</button>
+                            <button id="clear-log-button"
+                                class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Limpiar
+                                Semana Actual</button>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-lg overflow-x-auto">
+                        <div id="current-log-table-container"></div>
+                    </div>
+                </div>
+
+                <!-- Contenido de Historial -->
+                <div id="admin-historial-page" class="hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h1 class="text-3xl font-bold text-gray-800">Historial de Semanas Guardadas</h1>
+                        <button id="export-history-button"
+                            class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Exportar
+                            Todo a Excel</button>
+                    </div>
+                    <div id="history-container" class="space-y-8"></div>
+                </div>
+
+                <!-- Contenido de Empleados Inactivos -->
+                <div id="admin-inactivos-page" class="hidden">
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h2 class="text-xl font-bold text-gray-700 mb-4">Empleados Inactivos (21+ Días)</h2>
+                        <div id="inactive-employees-container" class="overflow-x-auto"></div>
+                    </div>
+                </div>
+
+                <!-- Contenido de Dispositivos -->
+                <div id="admin-dispositivos-page" class="hidden">
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-gray-700">Dispositivos y Comedores Asignados</h2>
+                            <button id="delete-all-devices-button"
+                                class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Eliminar
+                                Todos</button>
+                        </div>
+                        <div id="devices-container" class="overflow-x-auto"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- Fin del contenedor con padding -->
+
+    <!-- MODALES -->
+    <div id="confirmation-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="admin-password-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="comedor-password-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="comedor-selector-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="badge-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="edit-employee-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="delete-employee-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="fullscreen-message-container"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center text-white text-center transition-opacity duration-300">
+    </div>
+    <div id="delete-device-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="edit-device-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+    <div id="delete-all-devices-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
+
+    <!-- NOTA: El archivo JavaScript completo (app.js) debe ser incluido aquí -->
+    <!-- Por ahora, el código JavaScript permanece en el archivo original ecxelente.html -->
+    <!-- Para una separación completa, todo el código JavaScript debe moverse a app.js -->
+
+    <!-- ARCHIVO JAVASCRIPT SEPARADO (DESCOMENTAR CUANDO ESTÉ COMPLETO) -->
+    <!-- <script type="module" src="app.js"></script> -->
+
+</body>
+
+</html>

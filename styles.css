@@ -1,0 +1,38 @@
+/* Fuente personalizada */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+body { 
+    font-family: 'Inter', sans-serif; 
+}
+
+.modal-enter, .page-enter { 
+    opacity: 0; 
+    transform: scale(0.95); 
+}
+
+.modal-enter-active, .page-enter-active { 
+    opacity: 1; 
+    transform: scale(1); 
+    transition: opacity 300ms, transform 300ms; 
+}
+
+.modal-exit-active { 
+    opacity: 0; 
+    transform: scale(0.95); 
+    transition: opacity 300ms, transform 300ms; 
+}
+
+input[type='number']::-webkit-outer-spin-button, 
+input[type='number']::-webkit-inner-spin-button { 
+    -webkit-appearance: none; 
+    margin: 0; 
+}
+
+input[type='number'] { 
+    -moz-appearance: textfield; 
+}
+
+select:disabled {
+    background-color: #f3f4f6; /* bg-gray-100 */
+    cursor: not-allowed;
+}
