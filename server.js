@@ -365,8 +365,10 @@ app.post('/api/consumos', async (req, res) => {
 // GET: Obtener consumos de la semana actual
 app.get('/api/consumos/semana-actual/:comedor_id', async (req, res) => {
     try {
+        console.log('Obteniendo consumos de la semana actual', req.params);
         const { comedor_id } = req.params;
         const result = await pool.query('SELECT * FROM sp_consumos_semana_actual($1)', [comedor_id]);
+        console.log('Consumos obtenidos', result.rows);
         res.json(result.rows);
     } catch (error) {
         console.error('Error:', error);

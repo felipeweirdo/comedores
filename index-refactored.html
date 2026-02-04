@@ -274,6 +274,116 @@
             nameSpan.textContent = activeComedor ? activeComedor.comedor_nombre : 'Sin comedor';
         }
 
+        async function renderConsumosTable() {
+            const container = document.getElementById('current-log-table-container');
+            if (!container) return;
+
+            try {
+                console.log('🔍 Cargando consumos para comedor:', appState.activeComedorId);
+
+                // Cargar consumos de la semana actual
+                const consumos = await apiRequest(`/consumos/semana-actual/${appState.activeComedorId}`);
+
+                console.log('📊 Consumos recibidos:', consumos);
+                console.log('📊 Cantidad:', consumos ? consumos.length : 0);
+
+                if (!consumos || consumos.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-8 text-gray-500">
+                            <p class="text-lg">No hay consumos registrados esta semana</p>
+                            <p class="text-sm mt-2">Comedor ID: ${appState.activeComedorId}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Agrupar por día
+                const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                const consumosPorDia = {};
+
+                consumos.forEach(c => {
+                    if (!consumosPorDia[c.day_name]) {
+                        consumosPorDia[c.day_name] = [];
+                    }
+                    consumosPorDia[c.day_name].push(c);
+                });
+                console.log('container1:', container);
+                container.innerHTML = `
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-2 text-left">Empleado</th>
+                                    ${diasSemana.map(dia => `<th class="px-4 py-2 text-center">${dia.substring(0, 3)}</th>`).join('')}
+                                    <th class="px-4 py-2 text-center">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${generateConsumosRows(consumos, diasSemana)}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+                        <h3 class="font-bold text-lg mb-2">Resumen Semanal</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            ${diasSemana.map(dia => {
+                    const consumosDia = consumosPorDia[dia] || [];
+                    const total = consumosDia.reduce((sum, c) => sum + parseInt(c.consumption_count || 0), 0);
+                    return `
+                                    <div class="text-center">
+                                        <div class="text-2xl font-bold text-blue-600">${total}</div>
+                                        <div class="text-sm text-gray-600">${dia}</div>
+                                    </div>
+                                `;
+                }).join('')}
+                        </div>
+                    </div>
+                `;
+                console.log('container1:', container);
+            } catch (error) {
+                console.error('Error cargando consumos:', error);
+                container.innerHTML = `
+                    <div class="text-center py-8 text-red-500">
+                        <p class="text-lg">Error al cargar consumos</p>
+                        <p class="text-sm">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function generateConsumosRows(consumos, diasSemana) {
+            // Agrupar por empleado
+            const empleadosMap = {};
+
+            consumos.forEach(c => {
+                if (!empleadosMap[c.employee_id]) {
+                    empleadosMap[c.employee_id] = {
+                        nombre: c.employee_name || 'Desconocido',
+                        consumos: {}
+                    };
+                }
+                empleadosMap[c.employee_id].consumos[c.day_name] = parseInt(c.consumption_count || 0);
+            });
+
+            // Generar filas
+            return Object.entries(empleadosMap).map(([employeeId, data]) => {
+                const consumosPorDia = diasSemana.map(dia => data.consumos[dia] || 0);
+                const total = consumosPorDia.reduce((sum, count) => sum + count, 0);
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-4 py-2">${data.nombre}</td>
+                        ${consumosPorDia.map(count => `
+                            <td class="px-4 py-2 text-center ${count > 0 ? 'bg-green-100 font-bold' : 'text-gray-400'}">
+                                ${count > 0 ? count : '-'}
+                            </td>
+                        `).join('')}
+                        <td class="px-4 py-2 text-center font-bold text-blue-600">${total}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
         // ============================================================================
         // ACCIONES
         // ============================================================================
@@ -421,23 +531,43 @@
             }
         };
 
+
+
+
         // Tabs de admin
         document.querySelectorAll('.admin-nav-button').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const page = e.target.dataset.adminPage;
                 currentAdminPage = page;
 
+                console.log('🔄 Cambiando a pestaña:', page);
+
                 // Actualizar tabs
                 document.querySelectorAll('.admin-nav-button').forEach(b => {
-                    b.classList.remove('text-blue-600', 'border-blue-600');
+                    b.classList.remove('text-blue-600', 'border-blue-600', 'border-b-2');
                     b.classList.add('text-gray-500');
                 });
-                e.target.classList.add('text-blue-600', 'border-blue-600');
+                e.target.classList.add('text-blue-600', 'border-blue-600', 'border-b-2');
                 e.target.classList.remove('text-gray-500');
 
-                // Mostrar página
-                document.querySelectorAll('[id$="-page"]').forEach(p => p.classList.add('hidden'));
-                document.getElementById(`admin-${page}-page`)?.classList.remove('hidden');
+                // Ocultar todas las páginas admin
+                document.getElementById('admin-gestion-page')?.classList.add('hidden');
+                document.getElementById('admin-consumos-page')?.classList.add('hidden');
+
+                // Mostrar la página seleccionada
+                const targetPage = document.getElementById(`admin-${page}-page`);
+                if (targetPage) {
+                    targetPage.classList.remove('hidden');
+                    console.log('✅ Página mostrada:', `admin-${page}-page`);
+                } else {
+                    console.error('❌ Página no encontrada:', `admin-${page}-page`);
+                }
+
+                // Cargar datos específicos de la página
+                if (page === 'consumos') {
+                    console.log('🔄 Recargando consumos...');
+                    await renderConsumosTable();
+                }
             });
         });
 
