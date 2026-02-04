@@ -262,13 +262,13 @@ app.get('/api/empleados/:id', async (req, res) => {
 // POST: Crear un nuevo empleado
 app.post('/api/empleados', async (req, res) => {
     try {
-        const { internal_id, comedor_id, name, number, type, pin } = req.body;
+        const { internal_id, comedor_id, name, number, type, pin, tipo_id } = req.body;
 
         const result = await pool.query(
-            `INSERT INTO empleados (internal_id, comedor_id, name, number, type, pin, last_active_date)
-             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+            `INSERT INTO empleados (internal_id, comedor_id, name, number, type, pin, tipo_id, last_active_date)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
              RETURNING *`,
-            [internal_id, comedor_id, name, number || null, type || null, pin || null]
+            [internal_id, comedor_id, name, number || null, type || null, pin || null, tipo_id || null]
         );
 
         res.status(201).json(result.rows[0]);
@@ -282,14 +282,14 @@ app.post('/api/empleados', async (req, res) => {
 app.put('/api/empleados/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, number, type, pin } = req.body;
+        const { name, number, type, pin, tipo_id } = req.body;
 
         const result = await pool.query(
             `UPDATE empleados 
-             SET name = $1, number = $2, type = $3, pin = $4, updated_at = CURRENT_TIMESTAMP
-             WHERE internal_id = $5
+             SET name = $1, number = $2, type = $3, pin = $4, tipo_id = $5, updated_at = CURRENT_TIMESTAMP
+             WHERE internal_id = $6
              RETURNING *`,
-            [name, number || null, type || null, pin || null, id]
+            [name, number || null, type || null, pin || null, tipo_id || null, id]
         );
 
         if (result.rows.length === 0) {
@@ -370,6 +370,115 @@ app.get('/api/consumos/semana-actual/:comedor_id', async (req, res) => {
         const result = await pool.query('SELECT * FROM sp_consumos_semana_actual($1)', [comedor_id]);
         console.log('Consumos obtenidos', result.rows);
         res.json(result.rows);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================================
+// ENDPOINTS - TIPOS
+// ============================================================================
+
+// GET: Obtener todos los tipos
+app.get('/api/tipos', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM tipo WHERE activo = TRUE ORDER BY descripcion');
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET: Obtener un tipo por ID
+app.get('/api/tipos/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM tipo WHERE id_tipo = $1', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Tipo no encontrado' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST: Crear un nuevo tipo
+app.post('/api/tipos', async (req, res) => {
+    try {
+        const { descripcion } = req.body;
+
+        const result = await pool.query(
+            `INSERT INTO tipo (descripcion, activo)
+             VALUES ($1, TRUE)
+             RETURNING *`,
+            [descripcion]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT: Actualizar un tipo
+app.put('/api/tipos/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { descripcion } = req.body;
+
+        const result = await pool.query(
+            `UPDATE tipo 
+             SET descripcion = $1, updated_at = CURRENT_TIMESTAMP
+             WHERE id_tipo = $2
+             RETURNING *`,
+            [descripcion, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Tipo no encontrado' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE: Eliminar (desactivar) un tipo
+app.delete('/api/tipos/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Verificar si hay empleados usando este tipo
+        const checkResult = await pool.query(
+            'SELECT COUNT(*) as count FROM empleados WHERE tipo_id = $1',
+            [id]
+        );
+
+        if (parseInt(checkResult.rows[0].count) > 0) {
+            return res.status(400).json({
+                error: 'No se puede eliminar este tipo porque hay empleados asociados'
+            });
+        }
+
+        const result = await pool.query(
+            'UPDATE tipo SET activo = FALSE WHERE id_tipo = $1 RETURNING *',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Tipo no encontrado' });
+        }
+
+        res.json({ message: 'Tipo desactivado', tipo: result.rows[0] });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: error.message });

@@ -105,8 +105,8 @@
                             class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <input type="text" id="new-employee-name" placeholder="Nombre Completo"
                             class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <select id="new-employee-tipo" disabled
-                            class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100">
+                        <select id="new-employee-tipo"
+                            class="p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Seleccione tipo...</option>
                         </select>
                         <button id="add-employee-button"
@@ -225,6 +225,9 @@
                     appState.empleados = await apiRequest(`/empleados?comedor_id=${appState.activeComedorId}`);
                 }
 
+                // Cargar tipos
+                await loadTipos();
+
                 renderAll();
             } catch (error) {
                 console.error('Error cargando datos:', error);
@@ -273,11 +276,21 @@
                         </tr>
                     </thead>
                     <tbody>
-                        ${filtered.map(emp => `
+                        ${filtered.map(emp => {
+                // Buscar el tipo si tiene tipo_id
+                let tipoDesc = '-';
+                if (emp.tipo_id) {
+                    const tipo = appState.tipos.find(t => t.id_tipo === emp.tipo_id);
+                    tipoDesc = tipo ? tipo.descripcion : `ID: ${emp.tipo_id}`;
+                } else if (emp.type) {
+                    tipoDesc = emp.type;
+                }
+
+                return `
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2">${emp.name}</td>
                                 <td class="px-4 py-2">${emp.number || '-'}</td>
-                                <td class="px-4 py-2">${emp.type || '-'}</td>
+                                <td class="px-4 py-2">${tipoDesc}</td>
                                 <td class="px-4 py-2">${emp.pin ? '✓' : '✗'}</td>
                                 <td class="px-4 py-2">
                                     <button onclick="deleteEmployee('${emp.internal_id}')" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
@@ -285,7 +298,7 @@
                                     </button>
                                 </td>
                             </tr>
-                        `).join('')}
+                        `}).join('')}
                     </tbody>
                 </table>
             `;
@@ -410,6 +423,138 @@
         }
 
         // ============================================================================
+        // FUNCIONES PARA TIPOS
+        // ============================================================================
+
+        async function loadTipos() {
+            try {
+                appState.tipos = await apiRequest('/tipos');
+                renderTiposSelect();
+                renderTiposTable();
+            } catch (error) {
+                console.error('Error cargando tipos:', error);
+            }
+        }
+
+        function renderTiposSelect() {
+            const select = document.getElementById('new-employee-tipo');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">Seleccione tipo...</option>';
+            appState.tipos.forEach(tipo => {
+                const option = document.createElement('option');
+                option.value = tipo.id_tipo;
+                option.textContent = tipo.descripcion;
+                select.appendChild(option);
+            });
+        }
+
+        function renderTiposTable() {
+            const container = document.getElementById('tipos-table-container');
+            if (!container) return;
+
+            if (appState.tipos.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <p class="text-lg">No hay tipos registrados</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <table class="min-w-full bg-white">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left">ID</th>
+                            <th class="px-4 py-2 text-left">Descripción</th>
+                            <th class="px-4 py-2 text-left">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${appState.tipos.map(tipo => `
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-2">${tipo.id_tipo}</td>
+                                <td class="px-4 py-2">
+                                    <span id="tipo-desc-${tipo.id_tipo}">${tipo.descripcion}</span>
+                                    <input type="text" id="tipo-edit-${tipo.id_tipo}" value="${tipo.descripcion}" 
+                                        class="hidden p-2 border rounded">
+                                </td>
+                                <td class="px-4 py-2 space-x-2">
+                                    <button onclick="editTipo(${tipo.id_tipo})" id="btn-edit-${tipo.id_tipo}"
+                                        class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                                        Editar
+                                    </button>
+                                    <button onclick="saveTipo(${tipo.id_tipo})" id="btn-save-${tipo.id_tipo}"
+                                        class="hidden bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+                                        Guardar
+                                    </button>
+                                    <button onclick="cancelEditTipo(${tipo.id_tipo})" id="btn-cancel-${tipo.id_tipo}"
+                                        class="hidden bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">
+                                        Cancelar
+                                    </button>
+                                    <button onclick="deleteTipo(${tipo.id_tipo})"
+                                        class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+                                        Eliminar
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        window.editTipo = function (id) {
+            document.getElementById(`tipo-desc-${id}`).classList.add('hidden');
+            document.getElementById(`tipo-edit-${id}`).classList.remove('hidden');
+            document.getElementById(`btn-edit-${id}`).classList.add('hidden');
+            document.getElementById(`btn-save-${id}`).classList.remove('hidden');
+            document.getElementById(`btn-cancel-${id}`).classList.remove('hidden');
+        };
+
+        window.cancelEditTipo = function (id) {
+            document.getElementById(`tipo-desc-${id}`).classList.remove('hidden');
+            document.getElementById(`tipo-edit-${id}`).classList.add('hidden');
+            document.getElementById(`btn-edit-${id}`).classList.remove('hidden');
+            document.getElementById(`btn-save-${id}`).classList.add('hidden');
+            document.getElementById(`btn-cancel-${id}`).classList.add('hidden');
+        };
+
+        window.saveTipo = async function (id) {
+            const newDesc = document.getElementById(`tipo-edit-${id}`).value.trim();
+
+            if (!newDesc) {
+                alert('La descripción no puede estar vacía');
+                return;
+            }
+
+            try {
+                await apiRequest(`/tipos/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ descripcion: newDesc })
+                });
+
+                await loadTipos();
+                showFullscreenMessage(true, 'Éxito', 'Tipo actualizado');
+            } catch (error) {
+                showFullscreenMessage(false, 'Error', error.message);
+            }
+        };
+
+        window.deleteTipo = async function (id) {
+            if (!confirm('¿Estás seguro de eliminar este tipo?')) return;
+
+            try {
+                await apiRequest(`/tipos/${id}`, { method: 'DELETE' });
+                await loadTipos();
+                showFullscreenMessage(true, 'Éxito', 'Tipo eliminado');
+            } catch (error) {
+                showFullscreenMessage(false, 'Error', error.message);
+            }
+        };
+
+        // ============================================================================
         // ACCIONES
         // ============================================================================
         async function registerConsumption(employeeId) {
@@ -492,9 +637,16 @@
         document.getElementById('add-employee-button')?.addEventListener('click', async () => {
             const number = document.getElementById('new-employee-id').value;
             const name = document.getElementById('new-employee-name').value;
+            const tipoId = document.getElementById('new-employee-tipo').value;
 
             if (!name) {
                 alert('El nombre es obligatorio');
+                return;
+            }
+
+            // Validar que si no hay número, debe haber tipo
+            if (!number && !tipoId) {
+                alert('Debe ingresar un número o seleccionar un tipo');
                 return;
             }
 
@@ -505,12 +657,14 @@
                         internal_id: crypto.randomUUID(),
                         comedor_id: appState.activeComedorId,
                         name: name,
-                        number: number || null
+                        number: number || null,
+                        tipo_id: tipoId || null
                     })
                 });
 
                 document.getElementById('new-employee-id').value = '';
                 document.getElementById('new-employee-name').value = '';
+                document.getElementById('new-employee-tipo').value = '';
                 await loadAllData();
                 showFullscreenMessage(true, 'Éxito', 'Empleado agregado');
             } catch (error) {
@@ -556,6 +710,46 @@
             }
         };
 
+        // Event listener para habilitar/deshabilitar select de tipo
+        document.getElementById('new-employee-id')?.addEventListener('input', (e) => {
+            const tipoSelect = document.getElementById('new-employee-tipo');
+            if (!tipoSelect) return;
+
+            if (e.target.value.trim()) {
+                // Si hay número, deshabilitar tipo
+                tipoSelect.disabled = true;
+                tipoSelect.classList.add('bg-gray-100');
+                tipoSelect.value = '';
+            } else {
+                // Si no hay número, habilitar tipo
+                tipoSelect.disabled = false;
+                tipoSelect.classList.remove('bg-gray-100');
+            }
+        });
+
+        // Event listener para agregar tipo
+        document.getElementById('add-tipo-button')?.addEventListener('click', async () => {
+            const descripcion = document.getElementById('new-tipo-descripcion').value.trim();
+
+            if (!descripcion) {
+                alert('La descripción es obligatoria');
+                return;
+            }
+
+            try {
+                await apiRequest('/tipos', {
+                    method: 'POST',
+                    body: JSON.stringify({ descripcion })
+                });
+
+                document.getElementById('new-tipo-descripcion').value = '';
+                await loadTipos();
+                showFullscreenMessage(true, 'Éxito', 'Tipo agregado');
+            } catch (error) {
+                showFullscreenMessage(false, 'Error', error.message);
+            }
+        });
+
 
 
 
@@ -578,6 +772,7 @@
                 // Ocultar todas las páginas admin
                 document.getElementById('admin-gestion-page')?.classList.add('hidden');
                 document.getElementById('admin-consumos-page')?.classList.add('hidden');
+                document.getElementById('admin-tipos-page')?.classList.add('hidden');
 
                 // Mostrar la página seleccionada
                 const targetPage = document.getElementById(`admin-${page}-page`);
@@ -592,6 +787,9 @@
                 if (page === 'consumos') {
                     console.log('🔄 Recargando consumos...');
                     await renderConsumosTable();
+                } else if (page === 'tipos') {
+                    console.log('🔄 Recargando tipos...');
+                    await loadTipos();
                 }
             });
         });
