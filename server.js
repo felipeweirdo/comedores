@@ -6,6 +6,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = process.env.API_PORT || 3000;
@@ -14,6 +15,14 @@ const PORT = process.env.API_PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Servir archivos estáticos (HTML, CSS, JS, imágenes, etc.)
+app.use(express.static(__dirname));
+
+// Ruta raíz - servir el archivo HTML principal
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/index-refactored-v2.html');
+});
 
 // Pool de conexiones a PostgreSQL
 const pool = new Pool({
@@ -37,6 +46,87 @@ pool.on('connect', () => {
 
 pool.on('error', (err) => {
     console.error('❌ Error inesperado en el pool de PostgreSQL:', err);
+});
+
+// ============================================================================
+// ENDPOINTS - AUTENTICACIÓN
+// ============================================================================
+
+// POST: Login de usuario
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+        }
+
+        // Buscar usuario por email
+        const result = await pool.query(
+            'SELECT id, email, full_name, role, comedor_id, active, password_hash FROM users WHERE email = $1 AND active = TRUE',
+            [email]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+
+        const user = result.rows[0];
+
+        // Verificar contraseña con bcrypt
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+        if (!passwordMatch) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+
+        res.json({
+            success: true,
+            user: {
+                id: user.id,
+                email: user.email,
+                fullName: user.full_name,
+                role: user.role,
+                comedorId: user.comedor_id
+            }
+        });
+    } catch (error) {
+        console.error('Error en login:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET: Verificar sesión (opcional, para futuras mejoras)
+app.get('/api/auth/me', async (req, res) => {
+    try {
+        const { userId } = req.query;
+
+        if (!userId) {
+            return res.status(400).json({ error: 'User ID requerido' });
+        }
+
+        const result = await pool.query(
+            'SELECT id, email, full_name, role, comedor_id, active FROM users WHERE id = $1 AND active = TRUE',
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        const user = result.rows[0];
+
+        res.json({
+            id: user.id,
+            email: user.email,
+            fullName: user.full_name,
+            role: user.role,
+            comedorId: user.comedor_id
+        });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // ============================================================================
@@ -126,6 +216,103 @@ app.get('/api/comedores', async (req, res) => {
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// POST: Crear nuevo comedor
+app.post('/api/comedores', async (req, res) => {
+    try {
+        const { id, name, empresa_id, require_pin } = req.body;
+
+        if (!id || !name || !empresa_id) {
+            return res.status(400).json({ error: 'ID, nombre y empresa_id son requeridos' });
+        }
+
+        const result = await pool.query(
+            `INSERT INTO COMEDORES (comedor_id, comedor_nombre, empresa_id, require_pin)
+             VALUES ($1, $2, $3, $4)
+             RETURNING *`,
+            [id, name, empresa_id, require_pin !== undefined ? require_pin : true]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error creando comedor:', error);
+        if (error.code === '23505') {
+            res.status(400).json({ error: 'Ya existe un comedor con ese ID' });
+        } else if (error.code === '23503') {
+            res.status(400).json({ error: 'La empresa especificada no existe' });
+        } else {
+            res.status(500).json({ error: error.message });
+        }
+    }
+});
+
+// PUT: Actualizar comedor
+app.put('/api/comedores/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, empresa_id, require_pin } = req.body;
+
+        let updates = [];
+        let params = [];
+        let paramCount = 1;
+
+        if (name !== undefined) {
+            updates.push(`comedor_nombre = $${paramCount++}`);
+            params.push(name);
+        }
+        if (empresa_id !== undefined) {
+            updates.push(`empresa_id = $${paramCount++}`);
+            params.push(empresa_id);
+        }
+        if (require_pin !== undefined) {
+            updates.push(`require_pin = $${paramCount++}`);
+            params.push(require_pin);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No hay campos para actualizar' });
+        }
+
+        params.push(id);
+        const query = `UPDATE COMEDORES SET ${updates.join(', ')} WHERE comedor_id = $${paramCount} RETURNING *`;
+
+        const result = await pool.query(query, params);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Comedor no encontrado' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error actualizando comedor:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE: Eliminar comedor
+app.delete('/api/comedores/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            'DELETE FROM COMEDORES WHERE comedor_id = $1 RETURNING *',
+            [id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Comedor no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Comedor eliminado' });
+    } catch (error) {
+        console.error('Error eliminando comedor:', error);
+        if (error.code === '23503') {
+            res.status(400).json({ error: 'No se puede eliminar el comedor porque tiene empleados o usuarios asignados' });
+        } else {
+            res.status(500).json({ error: error.message });
+        }
     }
 });
 
@@ -282,15 +469,50 @@ app.post('/api/empleados', async (req, res) => {
 app.put('/api/empleados/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, number, type, pin, tipo_id } = req.body;
+        const bodyFields = req.body;
 
-        const result = await pool.query(
-            `UPDATE empleados 
-             SET name = $1, number = $2, type = $3, pin = $4, tipo_id = $5, updated_at = CURRENT_TIMESTAMP
-             WHERE internal_id = $6
-             RETURNING *`,
-            [name, number || null, type || null, pin || null, tipo_id || null, id]
-        );
+        console.log('PUT /api/empleados/:id - Datos recibidos:', { id, body: bodyFields });
+
+        // Construir la consulta dinámicamente solo con los campos proporcionados
+        let updates = [];
+        let params = [];
+        let paramCount = 1;
+
+        // Solo agregar campos que existan en el body (no undefined)
+        if ('name' in bodyFields && bodyFields.name !== undefined) {
+            updates.push(`name = $${paramCount++}`);
+            params.push(bodyFields.name);
+        }
+        if ('number' in bodyFields && bodyFields.number !== undefined) {
+            updates.push(`number = $${paramCount++}`);
+            params.push(bodyFields.number || null);
+        }
+        if ('type' in bodyFields && bodyFields.type !== undefined) {
+            updates.push(`type = $${paramCount++}`);
+            params.push(bodyFields.type || null);
+        }
+        if ('pin' in bodyFields && bodyFields.pin !== undefined) {
+            updates.push(`pin = $${paramCount++}`);
+            params.push(bodyFields.pin || null);
+        }
+        if ('tipo_id' in bodyFields && bodyFields.tipo_id !== undefined) {
+            updates.push(`tipo_id = $${paramCount++}`);
+            params.push(bodyFields.tipo_id || null);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No hay campos para actualizar' });
+        }
+
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        params.push(id);
+
+        const query = `UPDATE empleados SET ${updates.join(', ')} WHERE internal_id = $${paramCount} RETURNING *`;
+
+        console.log('Query SQL:', query);
+        console.log('Params:', params);
+
+        const result = await pool.query(query, params);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Empleado no encontrado' });
@@ -298,7 +520,7 @@ app.put('/api/empleados/:id', async (req, res) => {
 
         res.json(result.rows[0]);
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error actualizando empleado:', error);
         res.status(500).json({ error: error.message });
     }
 });
