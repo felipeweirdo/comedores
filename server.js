@@ -25,6 +25,14 @@ app.get('/', (req, res) => {
 });
 
 // Pool de conexiones a PostgreSQL
+console.log('🔌 Intentando conectar a la base de datos con:', {
+    connectionString: process.env.DATABASE_URL ? '[REDACTED]' : 'undefined',
+    host: process.env.HOST || 'undefined',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DATABASE || 'undefined',
+    user: process.env.DB_USER || 'undefined'
+});
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     host: process.env.HOST,
