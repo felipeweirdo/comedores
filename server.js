@@ -26,14 +26,15 @@ app.get('/', (req, res) => {
 
 // Pool de conexiones a PostgreSQL
 const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
     host: process.env.HOST,
-    port: process.env.PORT || 5432,
+    port: process.env.DB_PORT || 5432, // Changed from process.env.PORT to avoid conflict with API port
     user: process.env.DB_USER,
     password: process.env.PASSWORD,
     database: process.env.DATABASE,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 10000, // Increased to 10s
     ssl: {
         rejectUnauthorized: false
     }

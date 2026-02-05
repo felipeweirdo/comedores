@@ -1,10 +1,23 @@
 version: 1.0
-runtime: nodejs22
+runtime: nodejs18
 build:
   commands:
+    pre-build:
+      - npm install
     build:
-      - npm ci
+      - echo "Build completed"
 run:
   command: npm start
   network:
     port: 3000
+  env:
+    - name: NODE_ENV
+      value: production
+    - name: PORT
+      value: "3000"
+    - name: DATABASE_URL
+      value: "postgresql://orbitalgreen:OrbitalGreen94@orbital.c1si04wy4fib.us-east-2.rds.amazonaws.com:5432/comedores"
+    - name: SESSION_SECRET
+      value: "orbital-green-super-secret-key-2026"
+    - name: NODE_TLS_REJECT_UNAUTHORIZED
+      value: "0"
