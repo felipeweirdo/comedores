@@ -19,6 +19,9 @@
     <!-- html2canvas para descargar gafete -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+    <!-- SheetJS para Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
     <!-- Estilos personalizados -->
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -178,9 +181,23 @@
                             Empleado</button>
                     </div>
 
-                    <div class="mb-4">
+                    <div class="mb-4 flex gap-4">
                         <input type="text" id="admin-employee-search" placeholder="Buscar empleado..."
-                            class="w-full p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            class="flex-grow p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                        <!-- Importar Empleados -->
+                        <div class="flex items-center">
+                            <input type="file" id="import-employees-file" accept=".csv, .xlsx, .xls" class="hidden">
+                            <button onclick="document.getElementById('import-employees-file').click()"
+                                class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Importar CSV/Excel
+                            </button>
+                        </div>
                     </div>
 
                     <div id="admin-table-container" class="overflow-x-auto"></div>
@@ -190,7 +207,18 @@
             <!-- Consumos -->
             <div id="admin-consumos-page" class="hidden">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h2 class="text-xl font-bold text-gray-700 mb-4">Consumos de la Semana Actual</h2>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-700">Consumos de la Semana Actual</h2>
+                        <button id="export-consumos-button"
+                            class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Exportar Excel
+                        </button>
+                    </div>
                     <div id="current-log-table-container"></div>
                 </div>
             </div>
@@ -438,12 +466,49 @@
         </div>
     </div>
 
+    <!-- Modal de Cambio de PIN (Admin) -->
+    <div id="change-pin-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Modificar NIP</h2>
+            <p class="text-gray-600 text-center mb-2" id="change-pin-employee-name"></p>
+            <p class="text-gray-500 text-center mb-6 text-sm">Ingrese el nuevo NIP de 4 dígitos</p>
+
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label for="admin-new-pin" class="block text-gray-700 text-sm font-bold mb-2">
+                        Nuevo NIP:
+                    </label>
+                    <input type="password" id="admin-new-pin" maxlength="4"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="••••">
+                </div>
+            </div>
+
+            <input type="hidden" id="change-pin-employee-id">
+
+            <div class="flex gap-3">
+                <button id="cancel-change-pin-button"
+                    class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg">
+                    Cancelar
+                </button>
+
+                <button id="save-change-pin-button"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="fullscreen-message-container"
         class="hidden fixed inset-0 z-50 flex items-center justify-center text-white text-center transition-opacity duration-300">
     </div>
 
     <!-- JavaScript Refactorizado -->
     <script type="module">
+        import * as OfflineDB from './db-offline.js';
+
         // ============================================================================
         // CONFIGURACIÓN
         // ============================================================================
@@ -564,6 +629,9 @@
         // ============================================================================
         async function loadAllData() {
             try {
+                // Intentar sincronizar datos offline si hay conexión
+                syncOfflineData();
+
                 // Cargar comedores
                 appState.comedores = await apiRequest('/comedores');
 
@@ -590,6 +658,9 @@
                 // Cargar empleados del comedor activo
                 if (appState.activeComedorId) {
                     appState.empleados = await apiRequest(`/empleados?comedor_id=${appState.activeComedorId}`);
+                    // 💾 Guardar empleados en IndexedDB para uso offline
+                    await OfflineDB.saveEmployees(appState.empleados);
+                    console.log('✅ Empleados guardados offline');
                 }
 
                 // Cargar tipos
@@ -600,7 +671,20 @@
                 // Actualizar display del usuario (para mostrar nombre del comedor)
                 updateUserDisplay();
             } catch (error) {
-                console.error('Error cargando datos:', error);
+                console.error('Error cargando datos (posiblemente offline):', error);
+
+                // 📂 Intentar cargar desde IndexedDB si falla la API
+                try {
+                    const offlineEmployees = await OfflineDB.getEmployees();
+                    if (offlineEmployees && offlineEmployees.length > 0) {
+                        appState.empleados = offlineEmployees;
+                        console.log('⚠️ Cargados empleados desde Offline DB');
+                        showFullscreenMessage(true, 'Modo Offline', 'Usando datos locales');
+                        renderAll();
+                    }
+                } catch (dbError) {
+                    console.error('Error cargando IndexedDB:', dbError);
+                }
             }
         }
 
@@ -668,6 +752,7 @@
                                         class="p-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         <option value="">Seleccionar...</option>
                                         <option value="edit">Editar</option>
+                                        <option value="change_pin">Modificar NIP</option>
                                         <option value="badge">Generar Gafete</option>
                                         <option value="delete">Eliminar</option>
                                     </select>
@@ -1186,28 +1271,83 @@
         }
 
         async function completeConsumptionRegistration() {
+            const consumptionData = {
+                employee_id: currentEmployeeForPIN.internal_id,
+                comedor_id: appState.activeComedorId,
+                consumption_date: new Date().toISOString().split('T')[0]
+            };
+
             try {
                 await apiRequest('/consumos', {
                     method: 'POST',
-                    body: JSON.stringify({
-                        employee_id: currentEmployeeForPIN.internal_id,
-                        comedor_id: appState.activeComedorId,
-                        consumption_date: new Date().toISOString().split('T')[0]
-                    })
+                    body: JSON.stringify(consumptionData)
                 });
 
                 showFullscreenMessage(true, '¡Validado!', 'Consumo registrado exitosamente');
-
-                setTimeout(() => {
-                    document.getElementById('employeeSearch').value = '';
-                    document.getElementById('search-results-container').classList.add('hidden');
-                    currentEmployeeForPIN = null;
-                }, 2000);
+                resetSearch();
 
             } catch (error) {
-                showFullscreenMessage(false, 'Error', error.message);
+                console.error('Error registro online:', error);
+                // 🔌 Fallback Offline
+                try {
+                    await OfflineDB.saveConsumption(consumptionData);
+                    showFullscreenMessage(true, 'Guardado Offline', 'Consumo guardado localmente');
+                    resetSearch();
+                } catch (dbError) {
+                    showFullscreenMessage(false, 'Error Fatal', 'No se pudo guardar ni online ni offline');
+                }
             }
         }
+
+        function resetSearch() {
+            setTimeout(() => {
+                document.getElementById('employeeSearch').value = '';
+                document.getElementById('search-results-container').classList.add('hidden');
+                currentEmployeeForPIN = null;
+            }, 2000);
+        }
+
+        async function syncOfflineData() {
+            if (!navigator.onLine) return;
+
+            try {
+                const pending = await OfflineDB.getPendingConsumptions();
+                if (pending.length === 0) return;
+
+                console.log(`📡 Sincronizando ${pending.length} consumos offline...`);
+                let syncedCount = 0;
+
+                for (const item of pending) {
+                    try {
+                        await apiRequest('/consumos', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                employee_id: item.employee_id,
+                                comedor_id: item.comedor_id,
+                                consumption_date: item.consumption_date
+                            })
+                        });
+                        // Si tiene éxito, borrar de IDB
+                        await OfflineDB.deleteConsumption(item.id);
+                        syncedCount++;
+                    } catch (err) {
+                        console.error('Error sincronizando item:', item, err);
+                    }
+                }
+
+                if (syncedCount > 0) {
+                    console.log(`✅ Sincronizados ${syncedCount}/${pending.length} consumos`);
+                    showFullscreenMessage(true, 'Sincronización', `${syncedCount} consumos subidos`);
+                    // Recargar tabla de consumos actual
+                    renderConsumosTable();
+                }
+            } catch (error) {
+                console.error('Error en sync:', error);
+            }
+        }
+
+        // Listener para cuando vuelve internet
+        window.addEventListener('online', syncOfflineData);
 
         // Event Listeners para los modales de PIN
         document.getElementById('save-pin-button')?.addEventListener('click', completePINRegistration);
@@ -1263,6 +1403,9 @@
                 case 'edit':
                     editEmployee(employeeId, employeeName, employeeNumber);
                     break;
+                case 'change_pin':
+                    openChangePinModal(employeeId, employeeName);
+                    break;
                 case 'badge':
                     generateBadge(employeeId, employeeName, employeeNumber);
                     break;
@@ -1271,6 +1414,47 @@
                     break;
             }
         };
+
+        function openChangePinModal(employeeId, employeeName) {
+            const modal = document.getElementById('change-pin-modal');
+            modal.classList.remove('hidden');
+
+            document.getElementById('change-pin-employee-name').textContent = employeeName;
+            document.getElementById('change-pin-employee-id').value = employeeId;
+            document.getElementById('admin-new-pin').value = '';
+
+            setTimeout(() => {
+                document.getElementById('admin-new-pin').focus();
+            }, 100);
+        }
+
+        // Event listeners para el modal de cambio de PIN (Admin)
+        document.getElementById('cancel-change-pin-button')?.addEventListener('click', () => {
+            document.getElementById('change-pin-modal').classList.add('hidden');
+        });
+
+        document.getElementById('save-change-pin-button')?.addEventListener('click', async () => {
+            const employeeId = document.getElementById('change-pin-employee-id').value;
+            const newPin = document.getElementById('admin-new-pin').value;
+
+            if (!newPin || newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+                alert('El NIP debe ser de 4 dígitos numéricos');
+                return;
+            }
+
+            try {
+                await apiRequest(`/empleados/${employeeId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ pin: newPin })
+                });
+
+                document.getElementById('change-pin-modal').classList.add('hidden');
+                await loadAllData();
+                showFullscreenMessage(true, 'Éxito', 'NIP actualizado correctamente');
+            } catch (error) {
+                showFullscreenMessage(false, 'Error', error.message);
+            }
+        });
 
         function editEmployee(employeeId, employeeName, employeeNumber) {
             // Buscar el empleado completo en el estado
@@ -1804,12 +1988,135 @@
             }
         });
 
+        // Exportar Consumos
+        document.getElementById('export-consumos-button')?.addEventListener('click', async () => {
+            try {
+                // Obtener datos frescos
+                const consumos = await apiRequest(`/consumos/semana-actual/${appState.activeComedorId}`);
+
+                if (!consumos || consumos.length === 0) {
+                    alert('No hay datos para exportar');
+                    return;
+                }
+
+                // Transformar datos para Excel
+                const dataToExport = consumos.map(c => ({
+                    'Empleado ID': c.employee_id,
+                    'Nombre': c.employee_name,
+                    'Fecha Consumo': new Date(c.consumption_date).toLocaleDateString(),
+                    'Día': c.day_name,
+                    'Cantidad': c.consumption_count,
+                    'Comedor': c.comedor_name
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Consumos");
+
+                const dateStr = new Date().toISOString().split('T')[0];
+                XLSX.writeFile(workbook, `Consumos_${dateStr}.xlsx`);
+
+            } catch (error) {
+                console.error('Error exportando:', error);
+                alert('Error al exportar: ' + error.message);
+            }
+        });
+
+        // Importar Empleados
+        document.getElementById('import-employees-file')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data);
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }); // Header 1 means array of arrays
+
+                // Asumimos formato: [ [Numero, Nombre], [123, Juan], ... ]
+                // O header key: [ {Numero: 123, Nombre: Juan}, ... ]
+                // Vamos a intentar detectar headers o usar indices 0 y 1.
+
+                // Mejor usar json auto key si tienen headers
+                const jsonDataObjects = XLSX.utils.sheet_to_json(firstSheet);
+
+                let processedCount = 0;
+                let skippedCount = 0;
+                let errorCount = 0;
+
+                console.log('Datos importados:', jsonDataObjects);
+
+                // Normalizar keys
+                const employeesToProcess = jsonDataObjects.map(row => {
+                    // Buscar key que parezca numero y nombre
+                    const activeKeys = Object.keys(row);
+                    const numberKey = activeKeys.find(k => k.toLowerCase().includes('numero') || k.toLowerCase().includes('emp') || k.toLowerCase().includes('id'));
+                    const nameKey = activeKeys.find(k => k.toLowerCase().includes('nombre') || k.toLowerCase().includes('name'));
+
+                    if (numberKey && nameKey) {
+                        return { number: String(row[numberKey]).trim(), name: String(row[nameKey]).trim() };
+                    }
+                    return null;
+                }).filter(x => x !== null);
+
+                if (employeesToProcess.length === 0) {
+                    alert('No se detectaron columnas válidas. Use cabeceras "NumeroEmpleado" y "NombreCompleto".');
+                    return;
+                }
+
+                showFullscreenMessage(true, 'Procesando...', `Importando ${employeesToProcess.length} empleados...`);
+
+                for (const emp of employeesToProcess) {
+                    // Validar duplicado localmente primero para ahorrar request
+                    const exists = appState.empleados.some(e => e.number === emp.number);
+                    if (exists) {
+                        console.warn(`Duplicado omitido: ${emp.number} - ${emp.name}`);
+                        skippedCount++;
+                        continue;
+                    }
+
+                    try {
+                        await apiRequest('/empleados', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                internal_id: crypto.randomUUID(),
+                                comedor_id: appState.activeComedorId,
+                                name: emp.name,
+                                number: emp.number,
+                                type: 'General' // Default type
+                            })
+                        });
+                        processedCount++;
+                    } catch (err) {
+                        console.error('Error guardando empleado importado:', err);
+                        errorCount++;
+                    }
+                }
+
+                e.target.value = ''; // Reset input
+                await loadAllData();
+                alert(`Importación completada:\n✅ Agregados: ${processedCount}\n⏭️ Duplicados (omitidos): ${skippedCount}\n❌ Errores: ${errorCount}`);
+
+            } catch (error) {
+                console.error('Error procesando archivo:', error);
+                alert('Error al procesar archivo: ' + error.message);
+                e.target.value = '';
+            }
+        });
+
         // ============================================================================
         // INICIALIZACIÓN
         // ============================================================================
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🚀 Sistema de Comedor - PostgreSQL');
             console.log('📡 API:', API_URL);
+
+            // Inicializar BD Offline
+            try {
+                await OfflineDB.initDB();
+            } catch (e) {
+                console.error('Error inicializando OfflineDB', e);
+            }
 
             // Ocultar loading overlay
             document.getElementById('loading-overlay').style.display = 'none';
