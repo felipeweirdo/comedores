@@ -1232,6 +1232,15 @@
                     body: JSON.stringify({ pin: newPIN })
                 });
 
+                // ✅ Actualizar estado local inmediatamente
+                currentEmployeeForPIN.pin = newPIN;
+                const localEmp = appState.empleados.find(e => e.internal_id === currentEmployeeForPIN.internal_id);
+                if (localEmp) localEmp.pin = newPIN;
+
+                // 💾 Actualizar cache offline
+                await OfflineDB.updateEmployeePIN(currentEmployeeForPIN.internal_id, newPIN);
+                console.log('✅ Local state and offline cache updated for PIN');
+
                 // Cerrar modal
                 document.getElementById('register-pin-modal').classList.add('hidden');
 
@@ -2103,6 +2112,73 @@
                 e.target.value = '';
             }
         });
+
+        // ============================================================================
+        // LISTENER GLOBAL PARA ESCÁNER QR (KEYBOARD WEDGE)
+        // ============================================================================
+        let qrBuffer = '';
+        let lastKeyTime = Date.now();
+
+        window.addEventListener('keydown', (e) => {
+            // Ignorar si estamos en un input (excepto el de búsqueda)
+            const activeElem = document.activeElement;
+            const isInput = activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA';
+
+            if (isInput && activeElem.id !== 'employeeSearch') {
+                return;
+            }
+
+            const currentTime = Date.now();
+
+            // Si ha pasado mucho tiempo entre teclas, reiniciar buffer 
+            // Esto ayuda a distinguir entre escáner (veloz) y teclado manual lento
+            if (currentTime - lastKeyTime > 100) {
+                qrBuffer = '';
+            }
+
+            lastKeyTime = currentTime;
+
+            if (e.key === 'Enter') {
+                if (qrBuffer.length > 0) {
+                    console.log('📡 QR detectado globalmente:', qrBuffer);
+                    const searchInput = document.getElementById('employeeSearch');
+                    if (searchInput) {
+                        searchInput.value = qrBuffer;
+                        // Intentar buscar al empleado inmediatamente
+                        selectEmployeeByData(qrBuffer);
+                    }
+                    qrBuffer = '';
+                    e.preventDefault();
+                }
+            } else if (e.key.length === 1) {
+                qrBuffer += e.key;
+
+                // Si no estamos en el input, mostrar visualmente que estamos capturando
+                if (activeElem.id !== 'employeeSearch') {
+                    const searchInput = document.getElementById('employeeSearch');
+                    if (searchInput) {
+                        searchInput.value = qrBuffer;
+                    }
+                }
+            }
+        });
+
+        // Nueva función auxiliar para buscar empleado por ID o Número exacto
+        async function selectEmployeeByData(data) {
+            // Buscar en el estado local por number o internal_id
+            const employee = appState.empleados.find(e =>
+                (e.number && e.number === data) ||
+                (e.internal_id === data)
+            );
+
+            if (employee) {
+                registerConsumption(employee.internal_id);
+            } else {
+                console.warn('Empleado no encontrado con datos QR:', data);
+                // Si no se encuentra exacto, el usuario ya ve lo que se escribió en el input
+                // y puede usar los resultados de búsqueda normales que se disparan por el input event
+            }
+        }
 
         // ============================================================================
         // INICIALIZACIÓN

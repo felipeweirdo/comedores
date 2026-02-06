@@ -113,9 +113,33 @@ export async function deleteConsumption(id) {
     const store = tx.objectStore(STORE_CONSUMPTIONS);
 
     store.delete(id);
-
+ 
     return new Promise((resolve, reject) => {
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function updateEmployeePIN(internal_id, pin) {
+    const db = await getDB();
+    const tx = db.transaction(STORE_EMPLOYEES, 'readwrite');
+    const store = tx.objectStore(STORE_EMPLOYEES);
+
+    return new Promise((resolve, reject) => {
+        const getRequest = store.get(internal_id);
+
+        getRequest.onsuccess = () => {
+            const employee = getRequest.result;
+            if (employee) {
+                employee.pin = pin;
+                const putRequest = store.put(employee);
+                putRequest.onsuccess = () => resolve(true);
+                putRequest.onerror = () => reject(putRequest.error);
+            } else {
+                resolve(false);
+            }
+        };
+
+        getRequest.onerror = () => reject(getRequest.error);
     });
 }
