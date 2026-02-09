@@ -646,24 +646,15 @@ app.get('/api/historial/:id/detalles', async (req, res) => {
         const { id } = req.params;
 
         const query = `
-            SELECT 
-                hd.*, 
+            SELECT SUM(hd.consumption_count) as consumption_count,
                 e.name as empleado_nombre, 
                 e.number as empleado_numero,
                 e.type as empleado_tipo
             FROM consumption_history_details hd
             LEFT JOIN empleados e ON hd.employee_id = e.internal_id
             WHERE hd.history_id = $1
-            ORDER BY e.name, 
-                     CASE hd.day_name
-                         WHEN 'Lunes' THEN 1
-                         WHEN 'Martes' THEN 2
-                         WHEN 'Miércoles' THEN 3
-                         WHEN 'Jueves' THEN 4
-                         WHEN 'Viernes' THEN 5
-                         WHEN 'Sábado' THEN 6
-                         WHEN 'Domingo' THEN 7
-                     END
+            GROUP BY e.internal_id ;
+                     
         `;
 
         const result = await pool.query(query, [id]);

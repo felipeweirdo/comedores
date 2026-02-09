@@ -29,7 +29,7 @@ exports.handler = async (event) => {
 
         // 2. Obtener el ID de la semana actual (de la cual queremos guardar el historial)
         // Usamos la función de la DB para ser consistentes
-        const weekRes = await client.query('SELECT get_week_id(CURRENT_DATE - 1) as week_id');
+        const weekRes = await client.query('SELECT get_week_id(CURRENT_DATE) as week_id');
         const currentWeekId = weekRes.rows[0].week_id;
 
         console.log(`Semana actual a procesar: ${currentWeekId}`);
