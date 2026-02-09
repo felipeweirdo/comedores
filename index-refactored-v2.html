@@ -22,6 +22,9 @@
     <!-- SheetJS para Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
+    <!-- JSZip para comprimir archivos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
     <!-- Estilos personalizados -->
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -199,6 +202,17 @@
                                 </svg>
                                 Importar CSV/Excel
                             </button>
+
+                            <!-- Descargar Todos los Gafetes -->
+                            <button id="download-all-badges-button"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg flex items-center gap-2 ml-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Gafetes (ZIP)
+                            </button>
                         </div>
                     </div>
 
@@ -320,6 +334,17 @@
     <div id="comedor-selector-modal"
         class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
 
+    <!-- Contenedor oculto para generación masiva de gafetes -->
+    <div id="batch-badge-container" class="fixed top-0 left-0 -z-50 opacity-0 pointer-events-none">
+        <div id="batch-badge-content" class="bg-white border-4 border-gray-300 rounded-xl p-6 text-center w-[400px]">
+            <img src="https://i.imgur.com/4SmaZVt.png" crossorigin="anonymous" alt="Logo"
+                class="mx-auto h-24 w-auto mb-4">
+            <div id="batch-badge-qr-container" class="flex justify-center mb-4"></div>
+            <h3 id="batch-badge-employee-name" class="text-xl font-bold text-gray-800 mb-2"></h3>
+            <p id="batch-badge-employee-number" class="text-gray-600"></p>
+        </div>
+    </div>
+
     <!-- Modal de Gafete -->
     <div id="badge-modal"
         class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
@@ -426,6 +451,47 @@
         </div>
     </div>
 
+    <!-- Modal de Editar Comedor -->
+    <div id="edit-comedor-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Editar Comedor</h2>
+
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label for="edit-comedor-name" class="block text-gray-700 text-sm font-bold mb-2">
+                        Nombre del Comedor:
+                    </label>
+                    <input type="text" id="edit-comedor-name"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Nombre del comedor">
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox" id="edit-comedor-require-pin"
+                        class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500">
+                    <label for="edit-comedor-require-pin" class="ml-2 block text-gray-700 font-bold">
+                        Requiere PIN para consumos
+                    </label>
+                </div>
+
+                <input type="hidden" id="edit-comedor-id">
+            </div>
+
+            <div class="flex gap-3">
+                <button id="cancel-edit-comedor-button"
+                    class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg">
+                    Cancelar
+                </button>
+
+                <button id="save-edit-comedor-button"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Registro de PIN -->
     <div id="register-pin-modal"
         class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
@@ -517,20 +583,9 @@
     <div id="change-pin-modal"
         class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Modificar NIP</h2>
-            <p class="text-gray-600 text-center mb-2" id="change-pin-employee-name"></p>
-            <p class="text-gray-500 text-center mb-6 text-sm">Ingrese el nuevo NIP de 4 dígitos</p>
-
-            <div class="space-y-4 mb-6">
-                <div>
-                    <label for="admin-new-pin" class="block text-gray-700 text-sm font-bold mb-2">
-                        Nuevo NIP:
-                    </label>
-                    <input type="password" id="admin-new-pin" maxlength="4"
-                        class="w-full p-3 border-2 border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="••••">
-                </div>
-            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Restaurar NIP</h2>
+            <p class="text-gray-600 text-center mb-6">¿Estás seguro de que deseas eliminar el NIP de este empleado?</p>
+            <p class="text-xl font-bold text-gray-800 text-center mb-6" id="change-pin-employee-name"></p>
 
             <input type="hidden" id="change-pin-employee-id">
 
@@ -542,7 +597,7 @@
 
                 <button id="save-change-pin-button"
                     class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">
-                    Guardar
+                    Aceptar
                 </button>
             </div>
         </div>
@@ -799,7 +854,7 @@
                                         class="p-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         <option value="">Seleccionar...</option>
                                         <option value="edit">Editar</option>
-                                        <option value="change_pin">Modificar NIP</option>
+                                        <option value="change_pin">Eliminar NIP</option>
                                         <option value="badge">Generar Gafete</option>
                                         <option value="delete">Eliminar</option>
                                     </select>
@@ -1092,28 +1147,18 @@
                     <tbody>
                         ${appState.comedores.map(comedor => `
                             <tr class="border-b hover:bg-gray-50">
-                                <td class="px-4 py-2">
-                                    <span id="comedor-id-${comedor.comedor_id}">${comedor.comedor_id}</span>
-                                </td>
-                                <td class="px-4 py-2">
-                                    <span id="comedor-nombre-${comedor.comedor_id}">${comedor.comedor_nombre}</span>
-                                    <input type="text" id="comedor-edit-nombre-${comedor.comedor_id}" value="${comedor.comedor_nombre}" 
-                                        class="hidden p-2 border rounded w-full">
-                                </td>
+                                <td class="px-4 py-2">${comedor.comedor_id}</td>
+                                <td class="px-4 py-2">${comedor.comedor_nombre}</td>
                                 <td class="px-4 py-2">${comedor.empresa_nombre || comedor.empresa_id}</td>
-                                <td class="px-4 py-2">${comedor.require_pin ? '✓' : '✗'}</td>
+                                <td class="px-4 py-2 text-center">
+                                    <span class="${comedor.require_pin ? 'text-green-600 font-bold' : 'text-gray-400'}">
+                                        ${comedor.require_pin ? 'SÍ' : 'NO'}
+                                    </span>
+                                </td>
                                 <td class="px-4 py-2 space-x-2">
-                                    <button onclick="editComedor('${comedor.comedor_id}')" id="btn-edit-comedor-${comedor.comedor_id}"
+                                    <button onclick="editComedor('${comedor.comedor_id}')"
                                         class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
                                         Editar
-                                    </button>
-                                    <button onclick="saveComedor('${comedor.comedor_id}')" id="btn-save-comedor-${comedor.comedor_id}"
-                                        class="hidden bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
-                                        Guardar
-                                    </button>
-                                    <button onclick="cancelEditComedor('${comedor.comedor_id}')" id="btn-cancel-comedor-${comedor.comedor_id}"
-                                        class="hidden bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">
-                                        Cancelar
                                     </button>
                                     <button onclick="deleteComedor('${comedor.comedor_id}')"
                                         class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
@@ -1128,23 +1173,28 @@
         }
 
         window.editComedor = function (id) {
-            document.getElementById(`comedor-nombre-${id}`).classList.add('hidden');
-            document.getElementById(`comedor-edit-nombre-${id}`).classList.remove('hidden');
-            document.getElementById(`btn-edit-comedor-${id}`).classList.add('hidden');
-            document.getElementById(`btn-save-comedor-${id}`).classList.remove('hidden');
-            document.getElementById(`btn-cancel-comedor-${id}`).classList.remove('hidden');
+            const comedor = appState.comedores.find(c => c.comedor_id === id);
+            if (!comedor) return;
+
+            // Abrir modal
+            const modal = document.getElementById('edit-comedor-modal');
+            modal.classList.remove('hidden');
+
+            // Cargar datos
+            document.getElementById('edit-comedor-id').value = id;
+            document.getElementById('edit-comedor-name').value = comedor.comedor_nombre;
+            document.getElementById('edit-comedor-require-pin').checked = comedor.require_pin;
         };
 
-        window.cancelEditComedor = function (id) {
-            document.getElementById(`comedor-nombre-${id}`).classList.remove('hidden');
-            document.getElementById(`comedor-edit-nombre-${id}`).classList.add('hidden');
-            document.getElementById(`btn-edit-comedor-${id}`).classList.remove('hidden');
-            document.getElementById(`btn-save-comedor-${id}`).classList.add('hidden');
-            document.getElementById(`btn-cancel-comedor-${id}`).classList.add('hidden');
-        };
+        // Event Listeners para Editar Comedor
+        document.getElementById('cancel-edit-comedor-button')?.addEventListener('click', () => {
+            document.getElementById('edit-comedor-modal').classList.add('hidden');
+        });
 
-        window.saveComedor = async function (id) {
-            const newNombre = document.getElementById(`comedor-edit-nombre-${id}`).value.trim();
+        document.getElementById('save-edit-comedor-button')?.addEventListener('click', async () => {
+            const id = document.getElementById('edit-comedor-id').value;
+            const newNombre = document.getElementById('edit-comedor-name').value.trim();
+            const requirePin = document.getElementById('edit-comedor-require-pin').checked;
 
             if (!newNombre) {
                 alert('El nombre no puede estar vacío');
@@ -1152,23 +1202,27 @@
             }
 
             try {
-                await apiRequest(`/comedores/${id}`, {
+                await apiRequest(`/ comedores / ${id} `, {
                     method: 'PUT',
-                    body: JSON.stringify({ name: newNombre })
+                    body: JSON.stringify({
+                        name: newNombre,
+                        require_pin: requirePin
+                    })
                 });
 
+                document.getElementById('edit-comedor-modal').classList.add('hidden');
                 await loadAllData();
                 showFullscreenMessage(true, 'Éxito', 'Comedor actualizado');
             } catch (error) {
                 showFullscreenMessage(false, 'Error', error.message);
             }
-        };
+        });
 
         window.deleteComedor = async function (id) {
             if (!confirm('¿Estás seguro de eliminar este comedor? Esto puede afectar a empleados y usuarios asignados.')) return;
 
             try {
-                await apiRequest(`/comedores/${id}`, { method: 'DELETE' });
+                await apiRequest(`/ comedores / ${id} `, { method: 'DELETE' });
                 await loadAllData();
                 showFullscreenMessage(true, 'Éxito', 'Comedor eliminado');
             } catch (error) {
@@ -1193,8 +1247,19 @@
                 }
 
                 currentEmployeeForPIN = employee;
+                console.log('appState', appState);
+                // Verificar si el comedor requiere PIN
+                // El activeComedorId es un string (UUID), debemos buscar el objeto completo
+                const currentComedor = appState.comedores.find(c => c.comedor_id === appState.activeComedorId);
+                console.log('Comedor actual:', currentComedor);
+                // Si encontramos el comedor y su configuración dice que NO requiere PIN
+                if (currentComedor && currentComedor.require_pin === false) {
+                    // Registrar directamente sin pedir PIN
+                    await completeConsumptionRegistration();
+                    return;
+                }
 
-                // Verificar si tiene PIN
+                // Verificar si tiene PIN (flujo normal)
                 if (!employee.pin || employee.pin === null) {
                     // No tiene PIN - Mostrar modal de registro
                     showRegisterPINModal(employee);
@@ -1232,7 +1297,7 @@
 
             // Mostrar datos del empleado
             document.getElementById('confirm-employee-name').textContent = employee.name;
-            document.getElementById('confirm-employee-number').textContent = `#${employee.number || employee.internal_id}`;
+            document.getElementById('confirm-employee-number').textContent = `#${employee.number || employee.internal_id} `;
         }
 
         function showVerifyPINModal() {
@@ -1477,11 +1542,6 @@
 
             document.getElementById('change-pin-employee-name').textContent = employeeName;
             document.getElementById('change-pin-employee-id').value = employeeId;
-            document.getElementById('admin-new-pin').value = '';
-
-            setTimeout(() => {
-                document.getElementById('admin-new-pin').focus();
-            }, 100);
         }
 
         // Event listeners para el modal de cambio de PIN (Admin)
@@ -1491,22 +1551,17 @@
 
         document.getElementById('save-change-pin-button')?.addEventListener('click', async () => {
             const employeeId = document.getElementById('change-pin-employee-id').value;
-            const newPin = document.getElementById('admin-new-pin').value;
-
-            if (!newPin || newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
-                alert('El NIP debe ser de 4 dígitos numéricos');
-                return;
-            }
 
             try {
+                // Enviar pin: null para eliminarlo
                 await apiRequest(`/empleados/${employeeId}`, {
                     method: 'PUT',
-                    body: JSON.stringify({ pin: newPin })
+                    body: JSON.stringify({ pin: null })
                 });
 
                 document.getElementById('change-pin-modal').classList.add('hidden');
                 await loadAllData();
-                showFullscreenMessage(true, 'Éxito', 'NIP actualizado correctamente');
+                showFullscreenMessage(true, 'Éxito', 'NIP eliminado correctamente');
             } catch (error) {
                 showFullscreenMessage(false, 'Error', error.message);
             }
@@ -1739,6 +1794,134 @@
                 alert('Error al descargar el gafete. Intenta usar el botón de imprimir.');
             }
         }
+
+        // Descargar todos los gafetes en ZIP
+        document.getElementById('download-all-badges-button')?.addEventListener('click', async () => {
+            if (appState.empleados.length === 0) {
+                alert('No hay empleados para generar gafetes.');
+                return;
+            }
+
+            if (!confirm(`¿Desea generar y descargar los gafetes de ${appState.empleados.length} empleados? Esto puede tomar un momento.`)) {
+                return;
+            }
+
+            const zip = new JSZip();
+            const folder = zip.folder("gafetes");
+            const batchContainer = document.getElementById('batch-badge-container');
+            const batchContent = document.getElementById('batch-badge-content');
+            const qrContainer = document.getElementById('batch-badge-qr-container');
+            const nameEl = document.getElementById('batch-badge-employee-name');
+            const numEl = document.getElementById('batch-badge-employee-number');
+
+            showFullscreenMessage(true, 'Generando...', 'Procesando gafetes... 0%');
+
+            try {
+                // Hacer visible momentáneamente (pero fuera de pantalla) para que html2canvas funcione bien
+                // Ya está fixed top-0 left-0 pero opacity 0. html2canvas a veces necesita visualización.
+                // Modificamos estilos para asegurar renderizado
+                batchContainer.style.opacity = '1';
+                batchContainer.style.zIndex = '-50'; // Detrás de todo
+
+                let processed = 0;
+                const errors = [];
+
+                for (const emp of appState.empleados) {
+                    try {
+                        // Actualizar datos
+                        nameEl.textContent = emp.name;
+                        numEl.textContent = emp.number ? `#${emp.number}` : 'Sin número';
+                        qrContainer.innerHTML = '';
+
+                        const qrData = emp.number || emp.internal_id;
+
+                        // Generar QR - Lógica robusta
+                        if (typeof QRCode !== 'undefined' && typeof QRCode.toCanvas === 'function') {
+                            // Opción A: node-qrcode
+                            const canvas = document.createElement('canvas');
+                            qrContainer.appendChild(canvas);
+
+                            await new Promise((resolve, reject) => {
+                                QRCode.toCanvas(canvas, qrData, {
+                                    width: 200,
+                                    margin: 2,
+                                    color: { dark: '#000000', light: '#FFFFFF' }
+                                }, (error) => {
+                                    if (error) reject(error);
+                                    else resolve();
+                                });
+                            });
+                        } else if (typeof QRCode !== 'undefined') {
+                            // Opción B: qrcodejs (constructor)
+                            new QRCode(qrContainer, {
+                                text: qrData,
+                                width: 200,
+                                height: 200,
+                                colorDark: '#000000',
+                                colorLight: '#ffffff',
+                                correctLevel: (QRCode.CorrectLevel) ? QRCode.CorrectLevel.H : 2
+                            });
+                        } else {
+                            throw new Error('Librería QRCode no encontrada');
+                        }
+
+                        // Esperar un tik para renderizado
+                        await new Promise(r => setTimeout(r, 50));
+
+                        // Capturar imagen
+                        const blob = await new Promise((resolve) => {
+                            html2canvas(batchContent, {
+                                backgroundColor: '#ffffff',
+                                scale: 2,
+                                logging: false
+                            }).then(canvas => {
+                                canvas.toBlob(resolve, 'image/png');
+                            });
+                        });
+
+                        if (blob) {
+                            const filename = `${emp.name.replace(/[^a-z0-9]/yi, '_')}_${emp.number || 'SN'}.png`;
+                            folder.file(filename, blob);
+                        }
+
+                        processed++;
+                        if (processed % 5 === 0) {
+                            showFullscreenMessage(true, 'Generando...', `Procesando gafetes... ${Math.round((processed / appState.empleados.length) * 100)}%`);
+                        }
+
+                    } catch (err) {
+                        console.error('Error generando gafete para', emp.name, err);
+                        errors.push(emp.name);
+                    }
+                }
+
+                showFullscreenMessage(true, 'Comprimiendo...', 'Generando archivo ZIP...');
+
+                const content = await zip.generateAsync({ type: "blob" });
+                const comedorName = appState.comedores.find(c => c.comedor_id === appState.activeComedorId)?.comedor_nombre || 'Comedor';
+
+                // Descargar
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `Gafetes_${comedorName}_${new Date().toISOString().slice(0, 10)}.zip`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+
+                // Ocultar de nuevo
+                batchContainer.style.opacity = '0';
+
+                if (errors.length > 0) {
+                    setTimeout(() => alert(`Proceso completado con ${errors.length} errores (ver consola).`), 500);
+                } else {
+                    showFullscreenMessage(true, '¡Listo!', 'Descarga iniciada');
+                }
+
+            } catch (error) {
+                console.error('Error global generando masivo:', error);
+                batchContainer.style.opacity = '0';
+                showFullscreenMessage(false, 'Error', 'Falló la generación masiva');
+            }
+        });
 
         window.deleteEmployee = async function (employeeId) {
             if (!confirm('¿Estás seguro de eliminar este empleado?')) return;
@@ -2261,6 +2444,7 @@
                 const employeesToProcess = jsonDataObjects.map(row => {
                     // Buscar key que parezca numero y nombre
                     const activeKeys = Object.keys(row);
+                    console.log('activeKeys', activeKeys);
                     const numberKey = activeKeys.find(k => k.toLowerCase().includes('numero') || k.toLowerCase().includes('emp') || k.toLowerCase().includes('id'));
                     const nameKey = activeKeys.find(k => k.toLowerCase().includes('nombre') || k.toLowerCase().includes('name'));
 
@@ -2269,7 +2453,7 @@
                     }
                     return null;
                 }).filter(x => x !== null);
-
+                console.log('employeesToProcess', employeesToProcess);
                 if (employeesToProcess.length === 0) {
                     alert('No se detectaron columnas válidas. Use cabeceras "NumeroEmpleado" y "NombreCompleto".');
                     return;
