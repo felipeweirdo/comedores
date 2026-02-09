@@ -115,6 +115,17 @@
             Cerrar Sesión
         </button>
 
+        <!-- Botón Conectar Impresora BT -->
+        <button id="connect-printer-button"
+            class="fixed top-4 right-44 bg-blue-800 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg shadow-lg z-30 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span id="printer-status-text">Conectar Impresora</span>
+        </button>
+
         <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
             <img src="https://i.imgur.com/4SmaZVt.png" crossorigin="anonymous" alt="Logo"
                 class="mx-auto h-36 w-auto mb-6">
@@ -1391,6 +1402,112 @@
             }
         }
 
+        // ============================================================================
+        // IMPRESIÓN BLUETOOTH
+        // ============================================================================
+
+        let printerCharacteristic = null;
+        let printerDevice = null;
+
+        async function connectPrinter() {
+            try {
+                // Solicitar dispositivo Bluetooth
+                // Filtramos por el servicio común de impresoras (0x18f0)
+                // Ajustar si la impresora usa otro
+                console.log('Solicitando dispositivo Bluetooth...');
+
+                printerDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+                    // acceptAllDevices: true, 
+                    // optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] 
+                });
+
+                console.log('Dispositivo seleccionado:', printerDevice.name);
+
+                const server = await printerDevice.gatt.connect();
+                console.log('Conectado al servidor GATT');
+
+                const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                console.log('Servicio obtenido');
+
+                // Característica común de escritura (Write)
+                printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+                console.log('Característica obtenida');
+
+                // Actualizar UI
+                const btnText = document.getElementById('printer-status-text');
+                if (btnText) btnText.textContent = 'Impresora Lista';
+
+                showFullscreenMessage(true, 'Impresora Conectada', `Conectado a ${printerDevice.name}`);
+
+                // Listener para desconexión
+                printerDevice.addEventListener('gattserverdisconnected', onPrinterDisconnected);
+
+            } catch (error) {
+                console.error('Error conectando impresora:', error);
+                alert(`Error al conectar impresora: ${error.message}`);
+            }
+        }
+
+        function onPrinterDisconnected() {
+            printerCharacteristic = null;
+            const btnText = document.getElementById('printer-status-text');
+            if (btnText) btnText.textContent = 'Reconectar Impresora';
+            console.log('Impresora desconectada');
+        }
+
+        async function printTicket(employeeName, employeeNumber, dateStr) {
+            if (!printerCharacteristic) {
+                console.warn('No hay impresora conectada');
+                // Opcional: Avisar al usuario discretamente o ignorar
+                return;
+            }
+
+            try {
+                const encoder = new TextEncoder();
+
+                // Comandos ESC/POS básicos
+                const ESC = '\x1B';
+                const GS = '\x1D';
+                const LF = '\x0A';
+
+                // Construcción del ticket
+                let ticket = '';
+
+                // Reset
+                ticket += ESC + '@';
+
+                // Centrar
+                ticket += ESC + 'a' + '\x01';
+                ticket += 'REGISTRO DE COMEDOR\n';
+                ticket += '--------------------------------\n';
+
+                // Izquierda
+                ticket += ESC + 'a' + '\x00';
+                ticket += 'Nombre: ' + employeeName + '\n';
+                ticket += 'Numero: # ' + employeeNumber + '\n';
+                ticket += 'Fecha: ' + dateStr + '\n';
+                ticket += '--------------------------------\n';
+                ticket += '\n\n\n'; // Feed final
+
+                // Convertir a Uint8Array
+                // Nota: TextEncoder usa UTF-8. Para impresoras antiguas puede requerir CP437, 
+                // pero la mayoría modernas aceptan UTF-8 o ASCII básico.
+                const data = encoder.encode(ticket);
+
+                // Escribir en bloques si es necesario (Bluetooth tiene lÍmite de MTU ~20 bytes a veces, 
+                // pero Chrome lo gestiona o los dispositivos modernos aceptan más)
+                // Para seguridad, escribimos todo junto, si falla, se podría fragmentar.
+                await printerCharacteristic.writeValue(data);
+                console.log('Impresión enviada');
+
+            } catch (error) {
+                console.error('Error imprimiendo ticket:', error);
+                alert('Error al imprimir: ' + error.message);
+                onPrinterDisconnected(); // Asumir desconexión si falla escritura
+            }
+        }
+
         async function completeConsumptionRegistration() {
             const consumptionData = {
                 employee_id: currentEmployeeForPIN.internal_id,
@@ -1405,6 +1522,16 @@
                 });
 
                 showFullscreenMessage(true, '¡Validado!', 'Consumo registrado exitosamente');
+
+                // --- IMPRESIÓN ---
+                try {
+                    const dateStr = new Date().toLocaleString('es-MX');
+                    await printTicket(currentEmployeeForPIN.name, currentEmployeeForPIN.number || '', dateStr);
+                } catch (printErr) {
+                    console.error("Error intentando imprimir:", printErr);
+                }
+                // -----------------
+
                 resetSearch();
 
             } catch (error) {
@@ -1413,6 +1540,16 @@
                 try {
                     await OfflineDB.saveConsumption(consumptionData);
                     showFullscreenMessage(true, 'Guardado Offline', 'Consumo guardado localmente');
+
+                    // --- IMPRESIÓN (También offline si la impresora funciona) ---
+                    try {
+                        const dateStr = new Date().toLocaleString('es-MX');
+                        await printTicket(currentEmployeeForPIN.name, currentEmployeeForPIN.number || '', dateStr);
+                    } catch (printErr) {
+                        console.error("Error intentando imprimir:", printErr);
+                    }
+                    // -----------------------------------------------------------
+
                     resetSearch();
                 } catch (dbError) {
                     showFullscreenMessage(false, 'Error Fatal', 'No se pudo guardar ni online ni offline');
@@ -1596,6 +1733,9 @@
                 tipoSelect.appendChild(option);
             });
         }
+
+        // Event listener para conectar impresora
+        document.getElementById('connect-printer-button')?.addEventListener('click', connectPrinter);
 
         // Event listeners para el modal de edición
         document.getElementById('cancel-edit-employee-button')?.addEventListener('click', () => {
