@@ -158,6 +158,8 @@
                 class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Tipos</button>
             <button data-admin-page="comedores"
                 class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Comedores</button>
+            <button data-admin-page="historia"
+                class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Historia</button>
         </div>
 
         <!-- Contenido Admin -->
@@ -260,6 +262,51 @@
                     </div>
 
                     <div id="comedores-table-container" class="overflow-x-auto"></div>
+                </div>
+            </div>
+
+            <!-- Historia -->
+            <div id="admin-historia-page" class="hidden">
+                <!-- Vista de Lista -->
+                <div id="historia-list-view" class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-bold text-gray-700 mb-4">Historial de Consumos Semanales</h2>
+                    <div id="historia-table-container" class="overflow-x-auto">
+                        <p class="text-gray-500 text-center py-4">Cargando historial...</p>
+                    </div>
+                </div>
+
+                <!-- Vista de Detalles -->
+                <div id="historia-detail-view" class="hidden bg-white p-6 rounded-2xl shadow-lg">
+                    <div class="flex items-center gap-4 mb-6">
+                        <button id="back-to-historia-list"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                            Volver
+                        </button>
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-700">Detalles de la Semana</h2>
+                            <p class="text-sm text-gray-500" id="historia-detail-subtitle">Semana del ...</p>
+                        </div>
+                        <div class="ml-auto">
+                            <button id="export-historia-button"
+                                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Exportar Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="historia-detail-table-container" class="overflow-x-auto">
+                        <!-- Aquí va la tabla de detalles -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -1706,6 +1753,161 @@
         };
 
         // ============================================================================
+        // LÓGICA DE HISTORIAL
+        // ============================================================================
+        let currentHistorialDetails = [];
+        let currentHistoryId = null;
+
+        async function loadHistorial() {
+            const container = document.getElementById('historia-table-container');
+            if (!container) return;
+
+            // Asegurar que estamos en la vista de lista
+            document.getElementById('historia-list-view').classList.remove('hidden');
+            document.getElementById('historia-detail-view').classList.add('hidden');
+
+            try {
+                container.innerHTML = '<p class="text-center py-4 text-gray-500">Cargando...</p>';
+
+                const historial = await apiRequest(`/historial?comedor_id=${appState.activeComedorId || ''}&limit=20`);
+
+                if (!historial || historial.length === 0) {
+                    container.innerHTML = '<p class="text-center py-8 text-gray-500">No hay historial disponible.</p>';
+                    return;
+                }
+
+                container.innerHTML = `
+                    <table class="min-w-full bg-white text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Semana (Inicio)</th>
+                                <th class="px-4 py-3 text-left">Comedor</th>
+                                <th class="px-4 py-3 text-left">Fecha de Guardado</th>
+                                <th class="px-4 py-3 text-left">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            ${historial.map(h => `
+                                <tr class="hover:bg-gray-50 cursor-pointer" onclick="viewHistorialDetail(${h.id}, '${h.week_id}')">
+                                    <td class="px-4 py-3 font-medium text-blue-600">${h.week_id}</td>
+                                    <td class="px-4 py-3 text-gray-600">${h.comedor_nombre}</td>
+                                    <td class="px-4 py-3 text-gray-500">${new Date(h.save_date).toLocaleString()}</td>
+                                    <td class="px-4 py-3">
+                                        <button class="text-blue-600 hover:text-blue-800 font-bold" 
+                                            onclick="event.stopPropagation(); viewHistorialDetail(${h.id}, '${h.week_id}')">
+                                            Ver Detalles
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                console.error('Error cargando historial:', error);
+                container.innerHTML = `<p class="text-center py-4 text-red-500">Error: ${error.message}</p>`;
+            }
+        }
+
+        window.viewHistorialDetail = async function (historyId, weekId) {
+            currentHistoryId = historyId;
+            const detailContainer = document.getElementById('historia-detail-table-container');
+            const subtitle = document.getElementById('historia-detail-subtitle');
+
+            // Cambiar vistas
+            document.getElementById('historia-list-view').classList.add('hidden');
+            document.getElementById('historia-detail-view').classList.remove('hidden');
+
+            subtitle.textContent = `Semana del: ${weekId}`;
+            detailContainer.innerHTML = '<p class="text-center py-4 text-gray-500">Cargando detalles...</p>';
+
+            try {
+                const detalles = await apiRequest(`/historial/${historyId}/detalles`);
+                currentHistorialDetails = detalles; // Guardar para exportar
+
+                if (!detalles || detalles.length === 0) {
+                    detailContainer.innerHTML = '<p class="text-center py-8 text-gray-500">Esta semana no tiene registros guardados.</p>';
+                    return;
+                }
+
+                detailContainer.innerHTML = `
+                    <table class="min-w-full bg-white text-sm border">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-2 text-left border">Empleado</th>
+                                <th class="px-4 py-2 text-left border">Número</th>
+                                <th class="px-4 py-2 text-left border">Tipo</th>
+                                <th class="px-4 py-2 text-left border">Día</th>
+                                <th class="px-4 py-2 text-center border">Consumos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${detalles.map(d => `
+                                <tr class="hover:bg-gray-50 text-gray-700">
+                                    <td class="px-4 py-2 border">${d.empleado_nombre || 'Desconocido'}</td>
+                                    <td class="px-4 py-2 border">${d.empleado_numero || '-'}</td>
+                                    <td class="px-4 py-2 border">${d.empleado_tipo || '-'}</td>
+                                    <td class="px-4 py-2 border font-medium">${d.day_name}</td>
+                                    <td class="px-4 py-2 border text-center font-bold">${d.consumption_count}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                        <tfoot class="bg-gray-100 font-bold">
+                            <tr>
+                                <td colspan="4" class="px-4 py-2 text-right border">Total General:</td>
+                                <td class="px-4 py-2 text-center border">
+                                    ${detalles.reduce((sum, d) => sum + parseInt(d.consumption_count || 0), 0)}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                `;
+
+            } catch (error) {
+                console.error('Error cargando detalles:', error);
+                detailContainer.innerHTML = `<p class="text-center py-4 text-red-500">Error: ${error.message}</p>`;
+            }
+        };
+
+        // Botón Volver de Historia
+        document.getElementById('back-to-historia-list')?.addEventListener('click', () => {
+            document.getElementById('historia-detail-view').classList.add('hidden');
+            document.getElementById('historia-list-view').classList.remove('hidden');
+        });
+
+        // Exportar Historia a Excel
+        document.getElementById('export-historia-button')?.addEventListener('click', () => {
+            if (!currentHistorialDetails || currentHistorialDetails.length === 0) {
+                alert('No hay datos para exportar');
+                return;
+            }
+
+            try {
+                // Preparar datos para Excel
+                const data = currentHistorialDetails.map(d => ({
+                    'Nombre': d.empleado_nombre,
+                    'Número': d.empleado_numero,
+                    'Tipo': d.empleado_tipo,
+                    'Día': d.day_name,
+                    'Consumos': d.consumption_count
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Historial Semana");
+
+                const activeComedor = appState.comedores.find(c => c.comedor_id === appState.activeComedorId);
+                const comedorName = activeComedor ? activeComedor.comedor_nombre : 'Comedor';
+                const filename = `Historial_${comedorName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+                XLSX.writeFile(wb, filename);
+            } catch (error) {
+                console.error('Error exportando:', error);
+                alert('Error al exportar a Excel');
+            }
+        });
+
+        // ============================================================================
         // UTILIDADES
         // ============================================================================
         // ============================================================================
@@ -1951,28 +2153,28 @@
                 e.target.classList.add('text-blue-600', 'border-blue-600', 'border-b-2');
                 e.target.classList.remove('text-gray-500');
 
-                // Ocultar todas las páginas admin
-                document.getElementById('admin-gestion-page')?.classList.add('hidden');
-                document.getElementById('admin-consumos-page')?.classList.add('hidden');
-                document.getElementById('admin-tipos-page')?.classList.add('hidden');
-                document.getElementById('admin-comedores-page')?.classList.add('hidden');
+                // Ocultar todas las páginas
+                document.getElementById('admin-gestion-page').classList.add('hidden');
+                document.getElementById('admin-consumos-page').classList.add('hidden');
+                document.getElementById('admin-tipos-page').classList.add('hidden');
+                document.getElementById('admin-comedores-page').classList.add('hidden');
+                document.getElementById('admin-historia-page').classList.add('hidden');
 
                 // Mostrar la página seleccionada
-                const targetPage = document.getElementById(`admin-${page}-page`);
-                if (targetPage) {
-                    targetPage.classList.remove('hidden');
-                    console.log('✅ Página mostrada:', `admin-${page}-page`);
-                } else {
-                    console.error('❌ Página no encontrada:', `admin-${page}-page`);
-                }
-
-                // Cargar datos específicos de la página
-                if (page === 'consumos') {
-                    console.log('🔄 Recargando consumos...');
-                    await renderConsumosTable();
+                if (page === 'gestion') {
+                    document.getElementById('admin-gestion-page').classList.remove('hidden');
+                } else if (page === 'consumos') {
+                    document.getElementById('admin-consumos-page').classList.remove('hidden');
+                    renderConsumosTable();
                 } else if (page === 'tipos') {
-                    console.log('🔄 Recargando tipos...');
-                    await loadTipos();
+                    document.getElementById('admin-tipos-page').classList.remove('hidden');
+                    loadTipos();
+                } else if (page === 'comedores') {
+                    document.getElementById('admin-comedores-page').classList.remove('hidden');
+                    renderComedoresTable();
+                } else if (page === 'historia') {
+                    document.getElementById('admin-historia-page').classList.remove('hidden');
+                    loadHistorial();
                 }
             });
         });

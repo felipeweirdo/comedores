@@ -608,6 +608,73 @@ app.get('/api/consumos/semana-actual/:comedor_id', async (req, res) => {
 });
 
 // ============================================================================
+// ENDPOINTS - HISTORIAL
+// ============================================================================
+
+// GET: Obtener lista de historiales (semanas guardadas)
+app.get('/api/historial', async (req, res) => {
+    try {
+        const { comedor_id, limit } = req.query;
+
+        let query = `
+            SELECT h.*, c.name as comedor_nombre 
+            FROM consumption_histories h
+            JOIN comedores c ON h.comedor_id = c.id
+        `;
+        let params = [];
+        let paramCount = 1;
+
+        if (comedor_id) {
+            query += ` WHERE h.comedor_id = $${paramCount++}`;
+            params.push(comedor_id);
+        }
+
+        query += ` ORDER BY h.week_id DESC LIMIT $${paramCount}`;
+        params.push(limit || 20);
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET: Obtener detalles de un historial específico
+app.get('/api/historial/:id/detalles', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const query = `
+            SELECT 
+                hd.*, 
+                e.name as empleado_nombre, 
+                e.number as empleado_numero,
+                e.type as empleado_tipo
+            FROM consumption_history_details hd
+            LEFT JOIN empleados e ON hd.employee_id = e.internal_id
+            WHERE hd.history_id = $1
+            ORDER BY e.name, 
+                     CASE hd.day_name
+                         WHEN 'Lunes' THEN 1
+                         WHEN 'Martes' THEN 2
+                         WHEN 'Miércoles' THEN 3
+                         WHEN 'Jueves' THEN 4
+                         WHEN 'Viernes' THEN 5
+                         WHEN 'Sábado' THEN 6
+                         WHEN 'Domingo' THEN 7
+                     END
+        `;
+
+        const result = await pool.query(query, [id]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================================
 // ENDPOINTS - TIPOS
 // ============================================================================
 

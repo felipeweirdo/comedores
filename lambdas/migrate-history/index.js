@@ -17,25 +17,25 @@ exports.handler = async (event) => {
     };
 
     const client = new Client(config);
-    
+
     try {
         await client.connect();
-        
+
         // 1. Obtener todos los comedores activos
         const comedoresRes = await client.query('SELECT id FROM comedores');
         const comedores = comedoresRes.rows;
-        
+
         console.log(`Procesando ${comedores.length} comedores...`);
-        
+
         // 2. Obtener el ID de la semana actual (de la cual queremos guardar el historial)
         // Usamos la función de la DB para ser consistentes
-        const weekRes = await client.query('SELECT get_week_id(CURRENT_DATE) as week_id');
+        const weekRes = await client.query('SELECT get_week_id(CURRENT_DATE - 1) as week_id');
         const currentWeekId = weekRes.rows[0].week_id;
-        
+
         console.log(`Semana actual a procesar: ${currentWeekId}`);
-        
+
         const results = [];
-        
+
         // 3. Ejecutar el procedimiento almacenado para cada comedor
         for (const comedor of comedores) {
             try {
@@ -43,12 +43,12 @@ exports.handler = async (event) => {
                     'SELECT * FROM sp_guardar_semana_historial($1, $2)',
                     [comedor.id, currentWeekId]
                 );
-                
+
                 const message = res.rows[0].mensaje;
                 const historyId = res.rows[0].history_id;
-                
+
                 console.log(`Comedor ${comedor.id}: ${message} (History ID: ${historyId})`);
-                
+
                 results.push({
                     comedor_id: comedor.id,
                     success: true,
@@ -64,7 +64,7 @@ exports.handler = async (event) => {
                 });
             }
         }
-        
+
         return {
             statusCode: 200,
             body: JSON.stringify({
@@ -74,7 +74,7 @@ exports.handler = async (event) => {
                 details: results
             })
         };
-        
+
     } catch (error) {
         console.error('Error crítico en la ejecución:', error);
         return {
