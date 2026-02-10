@@ -17,10 +17,9 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
     <!-- Socket.IO -->
-    <!-- Usamos ruta relativa /socket.io/socket.io.js que funciona automáticamente tanto en localhost como en App Runner -->
+    <!-- Socket.IO -->
+    <!-- Usamos ruta relativa del servidor para evitar problemas de CDN externo -->
     <script src="/socket.io/socket.io.js"></script>
-    <!-- Fallback al CDN si es necesario -->
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
     <!-- html2canvas para descargar gafete -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -412,43 +411,160 @@
             </div>
         </div>
 
+        <!-- Tabs de Navegación Verificador -->
+        <div class="flex mb-6 border-b-2 border-gray-200">
+            <button id="tab-verificador-realtime"
+                class="py-2 px-4 border-b-2 border-blue-500 text-blue-600 font-bold focus:outline-none transition-colors">
+                Tiempo Real
+            </button>
+            <button id="tab-verificador-history"
+                class="py-2 px-4 border-b-2 border-transparent text-gray-500 font-medium hover:text-blue-500 focus:outline-none transition-colors">
+                Historial Hoy
+            </button>
+        </div>
+
+        <!-- VISTA TIEMPO REAL -->
+        <div id="verificador-realtime-view">
+
+            <div class="bg-white p-6 rounded-2xl shadow-lg">
+                <h2 class="text-xl font-bold text-gray-700 mb-4">Últimos Consumos Registrados</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full leading-normal">
+                        <thead>
+                            <tr>
+                                <th
+                                    class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    Hora
+                                </th>
+                                <th
+                                    class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    Empleado
+                                </th>
+                                <th
+                                    class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    Número
+                                </th>
+                                <th
+                                    class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    Tipo
+                                </th>
+                                <th
+                                    class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    Comedor
+                                </th>
+                                <th
+                                    class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                    Acciones
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="real-time-log-body">
+                            <!-- Las filas se agregarán dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VISTA HISTORIAL HOY -->
+    <div id="verificador-history-view" class="hidden">
         <div class="bg-white p-6 rounded-2xl shadow-lg">
-            <h2 class="text-xl font-bold text-gray-700 mb-4">Últimos Consumos Registrados</h2>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-700">Historial de Consumos del Día</h2>
+                <button id="refresh-history-btn" class="text-blue-600 hover:text-blue-800">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="mb-4">
+                <input type="text" id="verificador-history-search" placeholder="Buscar por nombre o número..."
+                    class="w-full p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
             <div class="overflow-x-auto">
                 <table class="min-w-full leading-normal">
                     <thead>
                         <tr>
                             <th
                                 class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                Hora
-                            </th>
+                                Hora</th>
                             <th
                                 class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                Empleado
-                            </th>
+                                Empleado</th>
                             <th
                                 class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                Número
-                            </th>
+                                Número</th>
                             <th
                                 class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                Tipo
-                            </th>
+                                Tipo</th>
                             <th
                                 class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                Comedor
-                            </th>
+                                Comedor</th>
                         </tr>
                     </thead>
-                    <tbody id="real-time-log-body">
-                        <!-- Las filas se agregarán dinámicamente -->
+                    <tbody id="verificador-history-body">
+                        <!-- Filas generadas dinámicamente -->
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+    </div>
 
     <!-- Modales -->
+    <!-- Modal de Validación de Consumo -->
+    <div id="validate-consumption-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Validar Consumo</h2>
+            <p class="text-gray-600 text-center mb-6">
+                ¿Está seguro de validar el consumo para el empleado <br>
+                <span id="validate-emp-name" class="font-bold text-gray-800"></span>
+                (<span id="validate-emp-number" class="font-bold text-gray-800"></span>)?
+                <br><br>
+                <span class="text-sm text-gray-500">Esta acción eliminará el registro de la vista actual.</span>
+            </p>
+
+            <input type="hidden" id="validate-row-id">
+
+            <div class="flex gap-3">
+                <button id="cancel-validate-button"
+                    class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg">
+                    Cancelar
+                </button>
+                <button id="confirm-validate-button"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg">
+                    Validar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Contraseña para Logout -->
+    <div id="logout-password-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Confirmar Cierre de Sesión</h2>
+            <p class="text-gray-600 text-center mb-6">Por seguridad, ingrese su contraseña para confirmar.</p>
+            <input type="password" id="logout-confirm-password"
+                class="w-full p-3 border-2 border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Contraseña actual">
+            <p id="logout-error-msg" class="text-red-500 text-sm text-center mb-4 hidden"></p>
+            <div class="flex gap-3">
+                <button id="cancel-logout-btn"
+                    class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                <button id="confirm-logout-btn"
+                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg">Cerrar
+                    Sesión</button>
+            </div>
+        </div>
+    </div>
+
     <div id="confirmation-modal"
         class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
     <div id="admin-password-modal"
@@ -618,7 +734,8 @@
     <div id="manage-user-modal"
         class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center" id="manage-user-modal-title">Agregar Usuario
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center" id="manage-user-modal-title">Agregar
+                Usuario
             </h2>
 
             <div class="space-y-4 mb-6">
@@ -782,7 +899,8 @@
         class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
             <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Restaurar NIP</h2>
-            <p class="text-gray-600 text-center mb-6">¿Estás seguro de que deseas eliminar el NIP de este empleado?</p>
+            <p class="text-gray-600 text-center mb-6">¿Estás seguro de que deseas eliminar el NIP de este empleado?
+            </p>
             <p class="text-xl font-bold text-gray-800 text-center mb-6" id="change-pin-employee-name"></p>
 
             <input type="hidden" id="change-pin-employee-id">
@@ -2484,7 +2602,19 @@
                 </div>
             `;
             container.classList.remove('hidden');
-            setTimeout(() => container.classList.add('hidden'), 3000);
+
+            // Refocus input immediately (allowing "blind" typing if supported)
+            const searchInput = document.getElementById('employeeSearch');
+            if (searchInput) {
+                searchInput.value = ''; // Clear previous input
+                searchInput.focus();
+            }
+
+            setTimeout(() => {
+                container.classList.add('hidden');
+                // Refocus again when hiding, just in case
+                if (searchInput) searchInput.focus();
+            }, 3000);
         }
 
         function switchPage(pageId) {
@@ -2495,9 +2625,83 @@
         // ============================================================================
         // EVENT LISTENERS
         // ============================================================================
-        document.getElementById('logout-button')?.addEventListener('click', () => {
+        // ============================================================================
+        // EVENT LISTENERS
+        // ============================================================================
+
+        // Función para manejar el logout seguro
+        function initiateSecureLogout() {
             if (confirm('¿Está seguro que desea cerrar sesión?')) {
-                logout();
+                const modal = document.getElementById('logout-password-modal');
+                const passwordInput = document.getElementById('logout-confirm-password');
+                const errorMsg = document.getElementById('logout-error-msg');
+
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    if (passwordInput) {
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                    if (errorMsg) errorMsg.classList.add('hidden');
+                }
+            }
+        }
+
+        // Listeners para botones de logout
+        document.getElementById('logout-button')?.addEventListener('click', initiateSecureLogout);
+        document.getElementById('logout-button-verificador')?.addEventListener('click', initiateSecureLogout);
+
+        // Lógica del modal de logout
+        document.getElementById('cancel-logout-btn')?.addEventListener('click', () => {
+            document.getElementById('logout-password-modal').classList.add('hidden');
+        });
+
+        document.getElementById('confirm-logout-btn')?.addEventListener('click', async () => {
+            const password = document.getElementById('logout-confirm-password').value;
+            const errorMsg = document.getElementById('logout-error-msg');
+            const btn = document.getElementById('confirm-logout-btn');
+
+            if (!password) {
+                if (errorMsg) {
+                    errorMsg.textContent = 'Ingrese su contraseña';
+                    errorMsg.classList.remove('hidden');
+                }
+                return;
+            }
+
+            try {
+                // Deshabilitar botón
+                btn.disabled = true;
+                btn.textContent = 'Verificando...';
+
+                const response = await fetch(`${API_URL}/auth/verify-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: appState.currentUser.id,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.valid) {
+                    logout();
+                } else {
+                    if (errorMsg) {
+                        errorMsg.textContent = 'Contraseña incorrecta';
+                        errorMsg.classList.remove('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error(error);
+                if (errorMsg) {
+                    errorMsg.textContent = 'Error de conexión';
+                    errorMsg.classList.remove('hidden');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Cerrar Sesión';
             }
         });
 
@@ -2983,6 +3187,119 @@
             const statusText = document.getElementById('socket-status-text');
             const tbody = document.getElementById('real-time-log-body');
 
+            // --- TABS LOGIC ---
+            // Initial query
+            let tabRealtime = document.getElementById('tab-verificador-realtime');
+            let tabHistory = document.getElementById('tab-verificador-history');
+            const viewRealtime = document.getElementById('verificador-realtime-view');
+            const viewHistory = document.getElementById('verificador-history-view');
+
+            function switchVerificadorTab(tab) {
+                // Re-query elements to ensure we have the live ones after replacement
+                const currentTabRealtime = document.getElementById('tab-verificador-realtime');
+                const currentTabHistory = document.getElementById('tab-verificador-history');
+
+                // Clases activos: border-blue-500 text-blue-600 font-bold
+                // Clases inactivos: border-transparent text-gray-500 font-medium
+
+                if (tab === 'realtime') {
+                    // Activar Realtime
+                    currentTabRealtime.classList.remove('border-transparent', 'text-gray-500', 'font-medium');
+                    currentTabRealtime.classList.add('border-blue-500', 'text-blue-600', 'font-bold');
+
+                    // Desactivar History
+                    currentTabHistory.classList.remove('border-blue-500', 'text-blue-600', 'font-bold');
+                    currentTabHistory.classList.add('border-transparent', 'text-gray-500', 'font-medium');
+
+                    viewRealtime.classList.remove('hidden');
+                    viewHistory.classList.add('hidden');
+                } else {
+                    // Activar History
+                    currentTabHistory.classList.remove('border-transparent', 'text-gray-500', 'font-medium');
+                    currentTabHistory.classList.add('border-blue-500', 'text-blue-600', 'font-bold');
+
+                    // Desactivar Realtime
+                    currentTabRealtime.classList.remove('border-blue-500', 'text-blue-600', 'font-bold');
+                    currentTabRealtime.classList.add('border-transparent', 'text-gray-500', 'font-medium');
+
+                    viewHistory.classList.remove('hidden');
+                    viewRealtime.classList.add('hidden');
+                    loadTodayConsumptions();
+                }
+            }
+
+            if (tabRealtime && tabHistory) {
+                const newRealtime = tabRealtime.cloneNode(true);
+                const newHistory = tabHistory.cloneNode(true);
+                tabRealtime.parentNode.replaceChild(newRealtime, tabRealtime);
+                tabHistory.parentNode.replaceChild(newHistory, tabHistory);
+
+                newRealtime.addEventListener('click', () => switchVerificadorTab('realtime'));
+                newHistory.addEventListener('click', () => switchVerificadorTab('history'));
+            }
+
+            // --- HISTORY LOGIC ---
+            const historyBody = document.getElementById('verificador-history-body');
+            const historySearch = document.getElementById('verificador-history-search');
+            const refreshHistoryBtn = document.getElementById('refresh-history-btn');
+
+            async function loadTodayConsumptions() {
+                if (!historyBody) return;
+                historyBody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Cargando...</td></tr>';
+                try {
+                    // Obtener consumos de hoy
+                    let url = `${API_URL}/consumos/hoy?comedor_id=${appState.currentUser.comedorId || ''}`;
+                    if (historySearch && historySearch.value.trim()) {
+                        url += `&search=${encodeURIComponent(historySearch.value.trim())}`;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Error cargando historial');
+                    const consumptions = await response.json();
+
+                    historyBody.innerHTML = '';
+                    if (consumptions.length === 0) {
+                        historyBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No hay consumos registrados hoy.</td></tr>';
+                        return;
+                    }
+
+                    consumptions.forEach(c => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                             <td class="px-5 py-5 border-b border-gray-200 text-sm">${new Date(c.created_at).toLocaleTimeString()}</td>
+                             <td class="px-5 py-5 border-b border-gray-200 text-sm font-bold text-gray-700">${c.employee_name}</td>
+                             <td class="px-5 py-5 border-b border-gray-200 text-sm">${c.employee_number || '-'}</td>
+                             <td class="px-5 py-5 border-b border-gray-200 text-sm">${c.employee_type || '-'}</td>
+                             <td class="px-5 py-5 border-b border-gray-200 text-sm">${c.comedor_name}</td>
+                        `;
+                        historyBody.appendChild(row);
+                    });
+
+                } catch (error) {
+                    console.error(error);
+                    historyBody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-red-500">Error: ${error.message}</td></tr>`;
+                }
+            }
+
+            if (historySearch) {
+                // Debounce search
+                let timeout = null;
+                const newSearch = historySearch.cloneNode(true);
+                historySearch.parentNode.replaceChild(newSearch, historySearch);
+
+                newSearch.addEventListener('input', () => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(loadTodayConsumptions, 300);
+                });
+            }
+            if (refreshHistoryBtn) {
+                const newRefresh = refreshHistoryBtn.cloneNode(true);
+                refreshHistoryBtn.parentNode.replaceChild(newRefresh, refreshHistoryBtn);
+                newRefresh.addEventListener('click', loadTodayConsumptions);
+            }
+
+            // --- SOCKET LOGIC ---
+
             socket.on('connect', () => {
                 console.log('Socket conectado');
                 if (statusIndicator) {
@@ -3006,7 +3323,9 @@
 
                 // Crear fila
                 const row = document.createElement('tr');
-                row.className = 'bg-green-50 transition-colors duration-1000';
+                const rowId = `row-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                row.id = rowId;
+                row.className = 'bg-green-50 transition-all duration-1000'; // Added transition-all
 
                 const timeStr = new Date(data.timestamp).toLocaleTimeString();
 
@@ -3025,6 +3344,15 @@
                     </td>
                     <td class="px-5 py-5 border-b border-gray-200 text-sm">
                         <p class="text-gray-900 whitespace-no-wrap">${data.comedor_name}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 text-sm">
+                        <button onclick="confirmValidation('${rowId}', '${data.employee_name.replace(/'/g, "\\'")}', '${(data.employee_number || '').replace(/'/g, "\\'")}')" 
+                                class="bg-green-100 hover:bg-green-200 text-green-800 p-2 rounded-full transition-colors focus:outline-none"
+                                title="Validar y quitar de la lista">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </button>
                     </td>
                 `;
 
@@ -3316,6 +3644,46 @@
                 }
             });
         });
+
+        // ===================================
+        // HELPERS GLOBALES PARA VERIFICADOR
+        // ===================================
+        window.confirmValidation = function (rowId, name, number) {
+            const modal = document.getElementById('validate-consumption-modal');
+            const nameSpan = document.getElementById('validate-emp-name');
+            const numberSpan = document.getElementById('validate-emp-number');
+            const rowIdInput = document.getElementById('validate-row-id');
+
+            if (nameSpan) nameSpan.textContent = name;
+            if (numberSpan) numberSpan.textContent = number;
+            if (rowIdInput) rowIdInput.value = rowId;
+
+            if (modal) modal.classList.remove('hidden');
+        };
+
+        const cancelValidateBtn = document.getElementById('cancel-validate-button');
+        if (cancelValidateBtn) {
+            cancelValidateBtn.addEventListener('click', () => {
+                document.getElementById('validate-consumption-modal').classList.add('hidden');
+            });
+        }
+
+        const confirmValidateBtn = document.getElementById('confirm-validate-button');
+        if (confirmValidateBtn) {
+            confirmValidateBtn.addEventListener('click', () => {
+                const rowId = document.getElementById('validate-row-id').value;
+                const row = document.getElementById(rowId);
+
+                if (row) {
+                    // Fade out
+                    row.classList.add('opacity-0');
+                    setTimeout(() => {
+                        row.remove();
+                    }, 500);
+                }
+                document.getElementById('validate-consumption-modal').classList.add('hidden');
+            });
+        }
 
     </script>
 </body>

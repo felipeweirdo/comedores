@@ -116,6 +116,39 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// POST: Verificar contraseña (para acciones sensibles como logout o eliminación)
+app.post('/api/auth/verify-password', async (req, res) => {
+    try {
+        const { userId, password } = req.body;
+
+        if (!userId || !password) {
+            return res.status(400).json({ error: 'User ID y contraseña son requeridos' });
+        }
+
+        const result = await pool.query(
+            'SELECT password_hash FROM users WHERE id = $1 AND active = TRUE',
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        const user = result.rows[0];
+        const match = await bcrypt.compare(password, user.password_hash);
+
+        if (!match) {
+            return res.status(401).json({ error: 'Contraseña incorrecta', valid: false });
+        }
+
+        res.json({ success: true, valid: true });
+
+    } catch (error) {
+        console.error('Error verificando password:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // GET: Verificar sesión (opcional, para futuras mejoras)
 app.get('/api/auth/me', async (req, res) => {
     try {
@@ -768,6 +801,41 @@ app.get('/api/consumos/semana-actual/:comedor_id', async (req, res) => {
         res.json(result.rows);
     } catch (error) {
         console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET: Obtener consumos del día actual (para Verificador)
+app.get('/api/consumos/hoy', async (req, res) => {
+    try {
+        const { comedor_id, search } = req.query;
+
+        let query = `
+            SELECT cl.*, e.name as employee_name, e.number as employee_number, e.type as employee_type, c.name as comedor_name
+            FROM consumption_logs cl
+            JOIN empleados e ON cl.employee_id = e.internal_id
+            JOIN comedores c ON cl.comedor_id = c.id
+            WHERE cl.consumption_date = CURRENT_DATE
+        `;
+        let params = [];
+        let paramCount = 1;
+
+        if (comedor_id) {
+            query += ` AND cl.comedor_id = $${paramCount++}`;
+            params.push(comedor_id);
+        }
+
+        if (search) {
+            query += ` AND (e.name ILIKE $${paramCount} OR e.number ILIKE $${paramCount})`;
+            params.push(`%${search}%`);
+        }
+
+        query += ' ORDER BY cl.created_at DESC';
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error obteniendo consumos de hoy:', error);
         res.status(500).json({ error: error.message });
     }
 });
