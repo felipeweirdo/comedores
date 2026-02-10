@@ -16,6 +16,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
+    <!-- Socket.IO -->
+    <!-- Intentamos cargar del servidor local para asegurar compatibilidad y funcionamiento offline -->
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <!-- Fallback al CDN si es necesario -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
     <!-- html2canvas para descargar gafete -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
@@ -337,6 +343,56 @@
         </div>
     </div>
 
+    <!-- PÁGINA VERIFICADOR -->
+    <div id="verificador-dashboard-page" class="page-container hidden container mx-auto p-4 space-y-8 mt-12">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Panel de Verificación en Tiempo Real</h1>
+            <div class="flex gap-4">
+                <div class="flex items-center gap-2 bg-green-100 px-4 py-2 rounded-lg text-green-800 font-bold">
+                    <div id="socket-status-indicator" class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
+                    <span id="socket-status-text">Conectado</span>
+                </div>
+                <button id="logout-button-verificador"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Cerrar Sesión</button>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+            <h2 class="text-xl font-bold text-gray-700 mb-4">Últimos Consumos Registrados</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full leading-normal">
+                    <thead>
+                        <tr>
+                            <th
+                                class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                Hora
+                            </th>
+                            <th
+                                class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                Empleado
+                            </th>
+                            <th
+                                class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                Número
+                            </th>
+                            <th
+                                class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                Tipo
+                            </th>
+                            <th
+                                class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                Comedor
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="real-time-log-body">
+                        <!-- Las filas se agregarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Modales -->
     <div id="confirmation-modal"
         class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50"></div>
@@ -642,7 +698,9 @@
         };
 
         let audioStarted = false;
+
         let currentAdminPage = 'gestion';
+        let socket = null;
 
         // ============================================================================
         // API
@@ -693,6 +751,9 @@
                     if (response.user.role === 'administrador') {
                         switchPage('admin-dashboard-page');
                         await loadAllData();
+                    } else if (response.user.role === 'verificador') {
+                        switchPage('verificador-dashboard-page');
+                        initVerificadorDashboard();
                     } else {
                         switchPage('main-page');
                         await loadAllData();
@@ -725,6 +786,10 @@
         function logout() {
             appState.currentUser = null;
             localStorage.removeItem('currentUser');
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
             switchPage('login-page');
         }
 
@@ -2312,6 +2377,13 @@
             }
         });
 
+        const logoutVerificadorBtn = document.getElementById('logout-button-verificador');
+        if (logoutVerificadorBtn) logoutVerificadorBtn.addEventListener('click', () => {
+            if (confirm('¿Está seguro que desea cerrar sesión?')) {
+                logout();
+            }
+        });
+
         document.getElementById('admin-comedor-selector')?.addEventListener('change', async (e) => {
             appState.activeComedorId = e.target.value;
             await loadAllData();
@@ -2741,6 +2813,9 @@
                 // Mostrar página según rol
                 if (appState.currentUser.role === 'administrador') {
                     switchPage('admin-dashboard-page');
+                } else if (appState.currentUser.role === 'verificador') {
+                    switchPage('verificador-dashboard-page');
+                    initVerificadorDashboard();
                 } else {
                     switchPage('main-page');
                 }
@@ -2752,6 +2827,90 @@
                 switchPage('login-page');
             }
         });
+        // ============================================================================
+        // VERIFICADOR DASHBOARD
+        // ============================================================================
+
+        function initVerificadorDashboard() {
+            if (socket) return; // Ya inicializado
+
+            console.log('Iniciando Dashboard de Verificador...');
+
+            if (typeof window.io === 'undefined') {
+                console.error('Socket.IO no está cargado');
+                alert('Error: No se pudo conectar al servicio de tiempo real. Verifique su conexión internet (CDN).');
+                return;
+            }
+
+            socket = window.io(API_URL.replace('/api', ''), {
+                transports: ['websocket', 'polling']
+            });
+
+            const statusIndicator = document.getElementById('socket-status-indicator');
+            const statusText = document.getElementById('socket-status-text');
+            const tbody = document.getElementById('real-time-log-body');
+
+            socket.on('connect', () => {
+                console.log('Socket conectado');
+                if (statusIndicator) {
+                    statusIndicator.classList.remove('bg-red-500');
+                    statusIndicator.classList.add('bg-green-500', 'animate-pulse');
+                }
+                if (statusText) statusText.textContent = 'Conectado';
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Socket desconectado');
+                if (statusIndicator) {
+                    statusIndicator.classList.remove('bg-green-500', 'animate-pulse');
+                    statusIndicator.classList.add('bg-red-500');
+                }
+                if (statusText) statusText.textContent = 'Desconectado';
+            });
+
+            socket.on('new_consumption', (data) => {
+                console.log('Nuevo consumo recibido:', data);
+
+                // Crear fila
+                const row = document.createElement('tr');
+                row.className = 'bg-green-50 transition-colors duration-1000';
+
+                const timeStr = new Date(data.timestamp).toLocaleTimeString();
+
+                row.innerHTML = `
+                    <td class="px-5 py-5 border-b border-gray-200 text-sm">
+                        <p class="text-gray-900 whitespace-no-wrap font-bold">${timeStr}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 text-sm">
+                        <p class="text-gray-900 whitespace-no-wrap">${data.employee_name}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 text-sm">
+                        <p class="text-gray-900 whitespace-no-wrap">${data.employee_number || '-'}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 text-sm">
+                        <p class="text-gray-900 whitespace-no-wrap">${data.employee_type || '-'}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 text-sm">
+                        <p class="text-gray-900 whitespace-no-wrap">${data.comedor_name}</p>
+                    </td>
+                `;
+
+                // Insertar al principio
+                tbody.insertBefore(row, tbody.firstChild);
+
+                // Efecto de highlight
+                setTimeout(() => {
+                    row.classList.remove('bg-green-50');
+                    row.classList.add('bg-white');
+                }, 2000);
+
+                // Limitar a las últimas 50 filas
+                if (tbody.children.length > 50) {
+                    tbody.removeChild(tbody.lastChild);
+                }
+            });
+        }
+
     </script>
 </body>
 

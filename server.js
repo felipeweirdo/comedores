@@ -9,6 +9,17 @@ const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 
 const app = express();
+const http = require('http');
+const { Server } = require('socket.io');
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
 const PORT = process.env.PORT || process.env.API_PORT || 3000;
 
 // Middleware
@@ -586,6 +597,36 @@ app.post('/api/consumos', async (req, res) => {
             [employee_id, comedor_id, consumption_date || new Date().toISOString().split('T')[0]]
         );
 
+        // Emitir evento de nuevo consumo a todos los clientes conectados
+        try {
+            // Buscamos información extra para enviar en el evento
+            // Esto es opcional pero útil para que el cliente no tenga que hacer otra query
+            if (result.rows[0].success) {
+                const consumptionDetails = await pool.query(
+                    `SELECT e.name, e.number, e.type, c.name as comedor_name
+                     FROM empleados e
+                     JOIN comedores c ON c.id = $2
+                     WHERE e.internal_id = $1`,
+                    [employee_id, comedor_id]
+                );
+                console.log('Consumo registrado', consumptionDetails.rows);
+                if (consumptionDetails.rows.length > 0) {
+                    const details = consumptionDetails.rows[0];
+                    io.emit('new_consumption', {
+                        employee_name: details.name,
+                        employee_number: details.number,
+                        employee_type: details.type,
+                        comedor_name: details.comedor_name,
+                        consumption_date: consumption_date || new Date().toISOString(),
+                        timestamp: new Date()
+                    });
+                }
+            }
+        } catch (socketError) {
+            console.error('Error emitiendo evento socket:', socketError);
+            // No fallamos la request si falla el socket
+        }
+
         res.json(result.rows[0]);
     } catch (error) {
         console.error('Error:', error);
@@ -844,12 +885,13 @@ app.get('/api/health', async (req, res) => {
 // INICIAR SERVIDOR
 // ============================================================================
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log('');
     console.log('🚀 ============================================');
     console.log('🚀  API REST - Sistema de Comedor Multi-Empresa');
     console.log('🚀 ============================================');
     console.log(`🌐  Servidor corriendo en: http://localhost:${PORT}`);
+    console.log(`📡  Socket.IO activo`);
     console.log(`📊  Health check: http://localhost:${PORT}/api/health`);
     console.log(`📚  Base de datos: ${process.env.DATABASE}`);
     console.log(`🏢  Host: ${process.env.HOST}`);

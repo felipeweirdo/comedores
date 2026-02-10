@@ -43,3 +43,12 @@ backup_*
 # Database dumps
 *.sql.gz
 *.dump
+
+#guias
+*.md
+
+#archivos zip
+*.zip
+
+#archivos sql
+*.sql
