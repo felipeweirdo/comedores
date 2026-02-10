@@ -1477,6 +1477,9 @@
                 // Reset
                 ticket += ESC + '@';
 
+                // Espacio al inicio (Padding inicial)
+                ticket += '\n\n\n\n\n';
+
                 // Centrar
                 ticket += ESC + 'a' + '\x01';
                 ticket += 'REGISTRO DE COMEDOR\n';
@@ -1488,7 +1491,9 @@
                 ticket += 'Numero: # ' + employeeNumber + '\n';
                 ticket += 'Fecha: ' + dateStr + '\n';
                 ticket += '--------------------------------\n';
-                ticket += '\n\n\n'; // Feed final
+
+                // Espacio al final (Padding final para corte)
+                ticket += '\n\n\n\n\n';
 
                 // Convertir a Uint8Array
                 // Nota: TextEncoder usa UTF-8. Para impresoras antiguas puede requerir CP437, 
