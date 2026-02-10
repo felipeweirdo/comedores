@@ -2977,9 +2977,7 @@
                 return;
             }
 
-            socket = window.io(API_URL.replace('/api', ''), {
-                transports: ['websocket', 'polling']
-            });
+            socket = window.io(API_URL.replace('/api', ''));
 
             const statusIndicator = document.getElementById('socket-status-indicator');
             const statusText = document.getElementById('socket-status-text');
