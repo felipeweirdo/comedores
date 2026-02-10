@@ -1478,7 +1478,7 @@
                 ticket += ESC + '@';
 
                 // Espacio al inicio (Padding inicial)
-                ticket += '\n\n\n\n\n';
+                ticket += '\n\n\n\n';
 
                 // Centrar
                 ticket += ESC + 'a' + '\x01';
@@ -1493,7 +1493,7 @@
                 ticket += '--------------------------------\n';
 
                 // Espacio al final (Padding final para corte)
-                ticket += '\n\n\n\n\n';
+                ticket += '\n\n\n\n\n\n';
 
                 // Convertir a Uint8Array
                 // Nota: TextEncoder usa UTF-8. Para impresoras antiguas puede requerir CP437, 
