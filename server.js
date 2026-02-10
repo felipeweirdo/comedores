@@ -150,6 +150,130 @@ app.get('/api/auth/me', async (req, res) => {
 });
 
 // ============================================================================
+// ENDPOINTS - GESTIÓN DE USUARIOS
+// ============================================================================
+
+// GET: Obtener todos los usuarios
+app.get('/api/users', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT id, email, full_name, role, comedor_id, active, created_at FROM users ORDER BY created_at DESC'
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST: Crear usuario
+app.post('/api/users', async (req, res) => {
+    try {
+        const { email, password, full_name, role, comedor_id } = req.body;
+
+        // Validación básica
+        if (!email || !password || !full_name || !role) {
+            return res.status(400).json({ error: 'Faltan campos requeridos' });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 10);
+
+        const result = await pool.query(
+            `INSERT INTO users (email, password_hash, full_name, role, comedor_id, active)
+             VALUES ($1, $2, $3, $4, $5, TRUE)
+             RETURNING id, email, full_name, role, comedor_id, active`,
+            [email, passwordHash, full_name, role, comedor_id]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error creando usuario:', error);
+        if (error.code === '23505') {
+            res.status(400).json({ error: 'El email ya está registrado' });
+        } else {
+            res.status(500).json({ error: error.message });
+        }
+    }
+});
+
+// PUT: Actualizar usuario
+app.put('/api/users/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { email, full_name, role, comedor_id, active } = req.body;
+
+        const result = await pool.query(
+            `UPDATE users 
+             SET email = $1, full_name = $2, role = $3, comedor_id = $4, active = $5, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $6
+             RETURNING id, email, full_name, role, comedor_id, active`,
+            [email, full_name, role, comedor_id, active, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error actualizando usuario:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT: Cambiar contraseña
+app.put('/api/users/:id/password', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { password } = req.body;
+
+        if (!password) {
+            return res.status(400).json({ error: 'La contraseña es requerida' });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 10);
+
+        const result = await pool.query(
+            `UPDATE users 
+             SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2
+             RETURNING id`,
+            [passwordHash, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+    } catch (error) {
+        console.error('Error cambiando password:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE: Eliminar usuario (Soft delete)
+app.delete('/api/users/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `UPDATE users SET active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json({ success: true, message: 'Usuario desactivado correctamente' });
+    } catch (error) {
+        console.error('Error eliminando usuario:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================================
 // ENDPOINTS - EMPRESAS
 // ============================================================================
 

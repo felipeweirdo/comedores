@@ -17,8 +17,8 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
     <!-- Socket.IO -->
-    <!-- Intentamos cargar del servidor local para asegurar compatibilidad y funcionamiento offline -->
-    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <!-- Usamos ruta relativa /socket.io/socket.io.js que funciona automáticamente tanto en localhost como en App Runner -->
+    <script src="/socket.io/socket.io.js"></script>
     <!-- Fallback al CDN si es necesario -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
@@ -180,6 +180,8 @@
                 class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Comedores</button>
             <button data-admin-page="historia"
                 class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Historia</button>
+            <button data-admin-page="usuarios"
+                class="admin-nav-button py-2 px-4 font-semibold text-gray-500 hover:text-blue-600">Usuarios</button>
         </div>
 
         <!-- Contenido Admin -->
@@ -234,6 +236,59 @@
                     </div>
 
                     <div id="admin-table-container" class="overflow-x-auto"></div>
+                </div>
+            </div>
+
+            <!-- Gestión de Usuarios -->
+            <div id="admin-usuarios-page" class="hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold text-gray-700">Gestión de Usuarios del Sistema</h2>
+                        <button id="btn-add-user"
+                            class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4v16m8-8H4" />
+                            </svg>
+                            Agregar Usuario
+                        </button>
+                    </div>
+
+                    <div class="mb-4">
+                        <input type="text" id="admin-users-search" placeholder="Buscar usuario..."
+                            class="w-full p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full leading-normal">
+                            <thead>
+                                <tr>
+                                    <th
+                                        class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Email</th>
+                                    <th
+                                        class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Nombre Completo</th>
+                                    <th
+                                        class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Rol</th>
+                                    <th
+                                        class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Comedor</th>
+                                    <th
+                                        class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Estado</th>
+                                    <th
+                                        class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-users-table-body">
+                                <!-- Filas generadas dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -555,6 +610,82 @@
                     class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">
                     Guardar
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Gestión de Usuario (Crear/Editar) -->
+    <div id="manage-user-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center" id="manage-user-modal-title">Agregar Usuario
+            </h2>
+
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
+                    <input type="email" id="manage-user-email"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Nombre Completo:</label>
+                    <input type="text" id="manage-user-fullname"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div id="manage-user-password-container">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Contraseña:</label>
+                    <input type="password" id="manage-user-password"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Rol:</label>
+                    <select id="manage-user-role"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Comedor Asignado:</label>
+                    <select id="manage-user-comedor"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Ninguno (Global)</option>
+                    </select>
+                </div>
+                <input type="hidden" id="manage-user-id">
+            </div>
+
+            <div class="flex gap-3">
+                <button id="btn-cancel-user"
+                    class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                <button id="btn-save-user"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Cambio de Contraseña de Usuario -->
+    <div id="change-user-password-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Cambiar Contraseña</h2>
+            <p class="text-gray-600 text-center mb-4">Ingrese la nueva contraseña para el usuario <span
+                    id="change-pass-user-email" class="font-bold"></span></p>
+
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Nueva Contraseña:</label>
+                    <input type="password" id="new-user-password"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <input type="hidden" id="change-pass-user-id">
+
+            <div class="flex gap-3">
+                <button id="btn-cancel-pass"
+                    class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg">Cancelar</button>
+                <button id="btn-save-pass"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Actualizar</button>
             </div>
         </div>
     </div>
@@ -2559,6 +2690,7 @@
                 document.getElementById('admin-tipos-page').classList.add('hidden');
                 document.getElementById('admin-comedores-page').classList.add('hidden');
                 document.getElementById('admin-historia-page').classList.add('hidden');
+                document.getElementById('admin-usuarios-page').classList.add('hidden');
 
                 // Mostrar la página seleccionada
                 if (page === 'gestion') {
@@ -2575,6 +2707,9 @@
                 } else if (page === 'historia') {
                     document.getElementById('admin-historia-page').classList.remove('hidden');
                     loadHistorial();
+                } else if (page === 'usuarios') {
+                    document.getElementById('admin-usuarios-page').classList.remove('hidden');
+                    loadUsers();
                 }
             });
         });
@@ -2910,6 +3045,279 @@
                 }
             });
         }
+
+        // ============================================================================
+        // GESTIÓN DE USUARIOS
+        // ============================================================================
+
+        async function loadUsers() {
+            try {
+                const users = await apiRequest('/users');
+                renderUsersTable(users);
+            } catch (error) {
+                console.error('Error cargando usuarios:', error);
+                showFullscreenMessage(false, 'Error', 'No se pudieron cargar los usuarios');
+            }
+        }
+
+        function renderUsersTable(users) {
+            const tbody = document.getElementById('admin-users-table-body');
+            tbody.innerHTML = '';
+
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <div class="flex items-center">
+                            <div class="ml-3">
+                                <p class="text-gray-900 whitespace-no-wrap font-bold">
+                                    ${user.email}
+                                </p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <p class="text-gray-900 whitespace-no-wrap">${user.full_name}</p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <span class="relative inline-block px-3 py-1 font-semibold leading-tight">
+                            <span aria-hidden class="absolute inset-0 ${user.role === 'administrador' ? 'bg-purple-200' : 'bg-blue-200'} opacity-50 rounded-full"></span>
+                            <span class="relative ${user.role === 'administrador' ? 'text-purple-900' : 'text-blue-900'}">${user.role}</span>
+                        </span>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                         <p class="text-gray-900 whitespace-no-wrap">
+                            ${user.comedor_id ? (appState.comedores.find(c => c.id === user.comedor_id)?.name || user.comedor_id) : 'Global'}
+                        </p>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <span class="relative inline-block px-3 py-1 font-semibold text-green-900 leading-tight">
+                            <span aria-hidden class="absolute inset-0 ${user.active ? 'bg-green-200' : 'bg-red-200'} opacity-50 rounded-full"></span>
+                            <span class="relative">${user.active ? 'Activo' : 'Inactivo'}</span>
+                        </span>
+                    </td>
+                    <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                        <div class="flex gap-2">
+                            <button onclick="openEditUserModal('${user.id}')" class="text-blue-600 hover:text-blue-900">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
+                            <button onclick="openChangePasswordModal('${user.id}', '${user.email}')" class="text-yellow-600 hover:text-yellow-900" title="Cambiar Contraseña">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11.536 19.464a3 3 0 01-1.414.88l-4.243.848a1 1 0 01-1.213-1.213l.849-4.243a3 3 0 01.88-1.414l3.364-3.364 1.757-1.757m0 0a6 6 0 10-8.486 8.486 1.757 1.757 0 111.757 1.757" />
+                                </svg>
+                            </button>
+                             <button onclick="deleteUser('${user.id}')" class="text-red-600 hover:text-red-900">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // --- Modales ---
+        const manageUserModal = document.getElementById('manage-user-modal');
+        const changeUserPassModal = document.getElementById('change-user-password-modal');
+
+        // Populate Comedor Select
+        function populateComedorSelect() {
+            const select = document.getElementById('manage-user-comedor');
+            //manage-user-role
+            const selectrole = document.getElementById('manage-user-role');
+
+            //limpiar select
+            select.innerHTML = '';
+            selectrole.innerHTML = '';
+
+
+            //Agregar los roles administrador, monitor y verificador
+            const roles = ['administrador', 'monitor', 'verificador'];
+            roles.forEach(role => {
+                const option = document.createElement('option');
+                console.log("role", role);
+                option.value = role;
+                option.textContent = role;
+                selectrole.appendChild(option);
+            });
+            // Keep first option (Ninguno/Global)
+            //select.innerHTML = '<option value="">Ninguno (Global - Acceso a todos)</option>';
+            console.log("appState.comedores", appState.comedores);
+            appState.comedores.forEach(comedor => {
+                const option = document.createElement('option');
+                option.value = comedor.comedor_id;
+                option.textContent = comedor.comedor_nombre;
+                select.appendChild(option);
+            });
+        }
+
+        document.getElementById('btn-add-user')?.addEventListener('click', () => {
+            document.getElementById('manage-user-modal-title').textContent = 'Agregar Usuario';
+            document.getElementById('manage-user-id').value = '';
+            document.getElementById('manage-user-email').value = '';
+            document.getElementById('manage-user-fullname').value = '';
+            document.getElementById('manage-user-password').value = '';
+            document.getElementById('manage-user-role').value = 'administrador';
+            document.getElementById('manage-user-comedor').value = '';
+            document.getElementById('manage-user-password-container').classList.remove('hidden');
+
+            populateComedorSelect();
+            manageUserModal.classList.remove('hidden');
+        });
+
+        window.openEditUserModal = async function (userId) {
+            try {
+                // Fetch info del usuario o buscar en tabla si ya la tenemos (mejor fetch para asegurar frescura)
+                // Usamos la lista cargada en memoria por simplicidad por ahora, 
+                // pero si el endpoint GET /users/:id existiera sería mejor.
+                // Como cargamos users al entrar al tab, buscamos en el DOM o re-fetcheamos.
+                // Re-fetcheamos todos para encontrarlo.
+                const users = await apiRequest('/users');
+                const user = users.find(u => u.id === userId);
+
+                if (!user) throw new Error('Usuario no encontrado');
+
+                document.getElementById('manage-user-modal-title').textContent = 'Editar Usuario';
+                document.getElementById('manage-user-id').value = user.id;
+                document.getElementById('manage-user-email').value = user.email;
+                document.getElementById('manage-user-fullname').value = user.full_name;
+                // No mostramos password al editar
+                document.getElementById('manage-user-password-container').classList.add('hidden');
+                document.getElementById('manage-user-password').value = '';
+
+                document.getElementById('manage-user-role').value = user.role;
+
+                populateComedorSelect();
+                document.getElementById('manage-user-comedor').value = user.comedor_id || '';
+
+                manageUserModal.classList.remove('hidden');
+            } catch (e) {
+                console.error(e);
+                alert('Error al cargar datos del usuario');
+            }
+        };
+
+        document.getElementById('btn-cancel-user')?.addEventListener('click', () => {
+            manageUserModal.classList.add('hidden');
+        });
+
+        document.getElementById('btn-save-user')?.addEventListener('click', async () => {
+            const id = document.getElementById('manage-user-id').value;
+            const email = document.getElementById('manage-user-email').value;
+            const full_name = document.getElementById('manage-user-fullname').value;
+            const password = document.getElementById('manage-user-password').value;
+            const role = document.getElementById('manage-user-role').value;
+            const comedor_id = document.getElementById('manage-user-comedor').value;
+
+            if (!email || !full_name || !role) {
+                alert('Faltan campos requeridos');
+                return;
+            }
+
+            if (!id && !password) {
+                alert('La contraseña es requerida para nuevos usuarios');
+                return;
+            }
+
+            const payload = {
+                email,
+                full_name,
+                role,
+                comedor_id: comedor_id || null,
+                active: true
+            };
+
+            if (!id) {
+                payload.password = password;
+            }
+
+            try {
+                const url = id ? `/users/${id}` : '/users';
+                const method = id ? 'PUT' : 'POST';
+
+                await apiRequest(url, {
+                    method: method,
+                    body: JSON.stringify(payload)
+                });
+
+                manageUserModal.classList.add('hidden');
+                loadUsers();
+                showFullscreenMessage(true, 'Éxito', id ? 'Usuario actualizado' : 'Usuario creado');
+            } catch (error) {
+                console.error(error);
+                alert('Error al guardar usuario: ' + error.message);
+            }
+        });
+
+        // --- Change Password Modal ---
+        window.openChangePasswordModal = function (userId, userEmail) {
+            document.getElementById('change-pass-user-id').value = userId;
+            document.getElementById('change-pass-user-email').textContent = userEmail;
+            document.getElementById('new-user-password').value = '';
+            changeUserPassModal.classList.remove('hidden');
+        }
+
+        document.getElementById('btn-cancel-pass')?.addEventListener('click', () => {
+            changeUserPassModal.classList.add('hidden');
+        });
+
+        document.getElementById('btn-save-pass')?.addEventListener('click', async () => {
+            const id = document.getElementById('change-pass-user-id').value;
+            const password = document.getElementById('new-user-password').value;
+
+            if (!password) {
+                alert('Debe ingresar una contraseña');
+                return;
+            }
+
+            try {
+                await apiRequest(`/users/${id}/password`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ password })
+                });
+
+                changeUserPassModal.classList.add('hidden');
+                showFullscreenMessage(true, 'Éxito', 'Contraseña actualizada');
+            } catch (error) {
+                console.error(error);
+                alert('Error al cambiar contraseña: ' + error.message);
+            }
+        });
+
+        // --- Delete User ---
+        window.deleteUser = async function (userId) {
+            if (!confirm('¿Está seguro de que desea eliminar este usuario? Esta acción no se puede deshacer.')) return;
+
+            try {
+                await apiRequest(`/users/${userId}`, {
+                    method: 'DELETE'
+                });
+                loadUsers();
+                showFullscreenMessage(true, 'Éxito', 'Usuario eliminado');
+            } catch (error) {
+                console.error(error);
+                alert('Error al eliminar usuario: ' + error.message);
+            }
+        }
+
+        // Search Filter
+        document.getElementById('admin-users-search')?.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#admin-users-table-body tr');
+
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(term)) {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+        });
 
     </script>
 </body>
