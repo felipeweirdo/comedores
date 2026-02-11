@@ -923,6 +923,33 @@
         class="hidden fixed inset-0 z-50 flex items-center justify-center text-white text-center transition-opacity duration-300">
     </div>
 
+    <!-- Modal de Confirmación de Logout -->
+    <div id="logout-password-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Confirmar Salida</h2>
+            <p class="text-gray-600 text-center mb-6">Ingresa tu contraseña para cerrar sesión</p>
+
+            <div class="mb-4">
+                <input type="password" id="logout-confirm-password"
+                    class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Contraseña">
+                <p id="logout-error-msg" class="text-red-500 text-sm mt-2 hidden text-center"></p>
+            </div>
+
+            <div class="flex gap-3">
+                <button id="cancel-logout-btn"
+                    class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg">
+                    Cancelar
+                </button>
+                <button id="confirm-logout-btn"
+                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg">
+                    Cerrar Sesión
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript Refactorizado -->
     <script type="module">
         import * as OfflineDB from './db-offline.js';
@@ -2632,10 +2659,12 @@
         // Función para manejar el logout seguro
         function initiateSecureLogout() {
             if (confirm('¿Está seguro que desea cerrar sesión?')) {
+                /*
                 const modal = document.getElementById('logout-password-modal');
                 const passwordInput = document.getElementById('logout-confirm-password');
                 const errorMsg = document.getElementById('logout-error-msg');
-
+                */
+                /*
                 if (modal) {
                     modal.classList.remove('hidden');
                     if (passwordInput) {
@@ -2644,6 +2673,9 @@
                     }
                     if (errorMsg) errorMsg.classList.add('hidden');
                 }
+                */
+                logout();
+
             }
         }
 
@@ -2687,6 +2719,7 @@
 
                 if (data.success && data.valid) {
                     logout();
+                    document.getElementById('logout-password-modal').classList.add('hidden');
                 } else {
                     if (errorMsg) {
                         errorMsg.textContent = 'Contraseña incorrecta';
@@ -2707,9 +2740,7 @@
 
         // Logout button para la página principal (usuarios no admin)
         document.getElementById('logout-button-main')?.addEventListener('click', () => {
-            if (confirm('¿Está seguro que desea cerrar sesión?')) {
-                logout();
-            }
+            ShowConfirmacionLogout();
         });
 
         const logoutVerificadorBtn = document.getElementById('logout-button-verificador');
@@ -3670,6 +3701,21 @@
 
         // ===================================
         // HELPERS GLOBALES PARA VERIFICADOR
+        // ===================================
+        window.ShowConfirmacionLogout = function () {
+            const modal = document.getElementById('logout-password-modal');
+            const passwordInput = document.getElementById('logout-confirm-password');
+            const errorMsg = document.getElementById('logout-error-msg');
+
+            if (passwordInput) passwordInput.value = '';
+            if (errorMsg) errorMsg.classList.add('hidden');
+
+            if (modal) {
+                modal.classList.remove('hidden');
+                setTimeout(() => passwordInput?.focus(), 100);
+            }
+        };
+
         // ===================================
         window.confirmValidation = function (rowId, name, number) {
             const modal = document.getElementById('validate-consumption-modal');
