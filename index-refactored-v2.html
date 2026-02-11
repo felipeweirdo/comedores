@@ -3056,51 +3056,67 @@
         });
 
         // ============================================================================
-        // LISTENER GLOBAL PARA ESCÁNER QR (KEYBOARD WEDGE)
+        // LISTENER GLOBAL PARA TECLADO (BUSQUEDA Y SCANNER)
         // ============================================================================
-        let qrBuffer = '';
-        let lastKeyTime = Date.now();
 
         window.addEventListener('keydown', (e) => {
-            // Ignorar si estamos en un input (excepto el de búsqueda)
+            // Priority: Modal de Confirmación de Identidad
+            const confirmModal = document.getElementById('confirm-identity-modal');
+            if (confirmModal && !confirmModal.classList.contains('hidden')) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('accept-identity-button')?.click();
+                    return;
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    document.getElementById('cancel-identity-button')?.click();
+                    return;
+                }
+                // Bloquear otras interacciones de teclado si el modal está abierto
+                return;
+            }
+
+            // Ignorar si estamos en un input/textarea que NO sea el de búsqueda
             const activeElem = document.activeElement;
             const isInput = activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA';
+            const searchInput = document.getElementById('employeeSearch');
 
+            if (!searchInput) return;
+
+            // Si el foco está en otro input (ej. modal), no interferir
             if (isInput && activeElem.id !== 'employeeSearch') {
                 return;
             }
 
-            const currentTime = Date.now();
-
-            // Si ha pasado mucho tiempo entre teclas, reiniciar buffer 
-            // Esto ayuda a distinguir entre escáner (veloz) y teclado manual lento
-            if (currentTime - lastKeyTime > 100) {
-                qrBuffer = '';
-            }
-
-            lastKeyTime = currentTime;
-
+            // Manejo de Enter
             if (e.key === 'Enter') {
-                if (qrBuffer.length > 0) {
-                    console.log('📡 QR detectado globalmente:', qrBuffer);
-                    const searchInput = document.getElementById('employeeSearch');
-                    if (searchInput) {
-                        searchInput.value = qrBuffer;
-                        // Intentar buscar al empleado inmediatamente
-                        selectEmployeeByData(qrBuffer);
-                    }
-                    qrBuffer = '';
+                const searchTerm = searchInput.value.trim();
+                // Intentar buscar inmediatamente
+                if (searchTerm) {
+                    console.log('🔍 Enter detectado, buscando:', searchTerm);
+                    selectEmployeeByData(searchTerm);
                     e.preventDefault();
                 }
-            } else if (e.key.length === 1) {
-                qrBuffer += e.key;
-
-                // Si no estamos en el input, mostrar visualmente que estamos capturando
+            }
+            // Manejo de Backspace
+            else if (e.key === 'Backspace') {
+                // Si NO estamos en el input, manejar el borrado manualmente
                 if (activeElem.id !== 'employeeSearch') {
-                    const searchInput = document.getElementById('employeeSearch');
-                    if (searchInput) {
-                        searchInput.value = qrBuffer;
-                    }
+                    e.preventDefault(); // Evitar navegar atrás
+                    const val = searchInput.value;
+                    searchInput.value = val.substring(0, val.length - 1);
+                    searchInput.dispatchEvent(new Event('input'));
+                    searchInput.focus(); // Enfocar para feedback visual
+                }
+            }
+            // Manejo de caracteres normales (letras, números, símbolos)
+            else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                // Si NO estamos en el input, agregar el caracter manualmente
+                if (activeElem.id !== 'employeeSearch') {
+                    e.preventDefault();
+                    searchInput.value += e.key;
+                    searchInput.dispatchEvent(new Event('input'));
+                    searchInput.focus(); // Enfocar para feedback visual
                 }
             }
         });
@@ -3115,10 +3131,17 @@
 
             if (employee) {
                 registerConsumption(employee.internal_id);
+                // Limpiar búsqueda tras éxito
+                const searchInput = document.getElementById('employeeSearch');
+                if (searchInput) {
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input')); // Ocultar resultados
+                    searchInput.blur(); // Quitar foco
+                }
             } else {
-                console.warn('Empleado no encontrado con datos QR:', data);
-                // Si no se encuentra exacto, el usuario ya ve lo que se escribió en el input
-                // y puede usar los resultados de búsqueda normales que se disparan por el input event
+                console.warn('Empleado no encontrado con datos exactos:', data);
+                // Si no es coincidencia exacta, dejamos que el usuario vea la lista filtrada
+                // que ya se actualizó con el evento 'input'
             }
         }
 
