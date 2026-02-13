@@ -30,6 +30,9 @@
     <!-- JSZip para comprimir archivos -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
+    <!-- Thermal Printer Encoder para impresión USB -->
+    <script src="https://unpkg.com/thermal-printer-encoder@latest/dist/thermal-printer-encoder.umd.js"></script>
+
     <!-- Estilos personalizados -->
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -1744,108 +1747,114 @@
         }
 
         // ============================================================================
-        // IMPRESIÓN BLUETOOTH
+        // IMPRESIÓN USB CON THERMAL-PRINTER-ENCODER
         // ============================================================================
 
-        let printerCharacteristic = null;
         let printerDevice = null;
+        let printerEndpoint = null;
 
         async function connectPrinter() {
             try {
-                // Solicitar dispositivo Bluetooth
-                // Filtramos por el servicio común de impresoras (0x18f0)
-                // Ajustar si la impresora usa otro
-                console.log('Solicitando dispositivo Bluetooth...');
+                console.log('Solicitando dispositivo USB...');
 
-                printerDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
-                    // acceptAllDevices: true, 
-                    // optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] 
+                // Solicitar dispositivo USB (sin filtros para permitir cualquier impresora)
+                printerDevice = await navigator.usb.requestDevice({
+                    filters: [] // Sin filtros, el usuario selecciona
                 });
 
-                console.log('Dispositivo seleccionado:', printerDevice.name);
+                console.log('Dispositivo seleccionado:', printerDevice.productName);
 
-                const server = await printerDevice.gatt.connect();
-                console.log('Conectado al servidor GATT');
+                await printerDevice.open();
+                console.log('Dispositivo abierto');
 
-                const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-                console.log('Servicio obtenido');
+                // Seleccionar configuración (generalmente la primera)
+                await printerDevice.selectConfiguration(1);
 
-                // Característica común de escritura (Write)
-                printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-                console.log('Característica obtenida');
+                // Claim interface (asumimos interfaz 0)
+                await printerDevice.claimInterface(0);
+
+                // Encontrar endpoint de salida (OUT)
+                const iface = printerDevice.configuration.interfaces[0];
+                const endpoint = iface.alternate.endpoints.find(ep =>
+                    ep.direction === 'out' && ep.type === 'bulk'
+                );
+
+                if (!endpoint) {
+                    throw new Error('No se encontró endpoint de salida en el dispositivo');
+                }
+
+                printerEndpoint = endpoint;
+                console.log('Endpoint de impresión:', printerEndpoint.endpointNumber);
 
                 // Actualizar UI
                 const btnText = document.getElementById('printer-status-text');
-                if (btnText) btnText.textContent = 'Impresora Lista';
+                if (btnText) btnText.textContent = 'Impresora USB Lista';
 
-                showFullscreenMessage(true, 'Impresora Conectada', `Conectado a ${printerDevice.name}`);
+                showFullscreenMessage(true, 'Impresora USB Conectada', `Conectado a ${printerDevice.productName}`);
 
                 // Listener para desconexión
-                printerDevice.addEventListener('gattserverdisconnected', onPrinterDisconnected);
+                printerDevice.addEventListener('disconnect', onPrinterDisconnected);
 
             } catch (error) {
-                console.error('Error conectando impresora:', error);
+                console.error('Error conectando impresora USB:', error);
                 alert(`Error al conectar impresora: ${error.message}`);
             }
         }
 
         function onPrinterDisconnected() {
-            printerCharacteristic = null;
+            printerEndpoint = null;
+            if (printerDevice) {
+                printerDevice.close();
+                printerDevice = null;
+            }
             const btnText = document.getElementById('printer-status-text');
-            if (btnText) btnText.textContent = 'Reconectar Impresora';
+            if (btnText) btnText.textContent = 'Conectar Impresora';
             console.log('Impresora desconectada');
         }
 
         async function printTicket(employeeName, employeeNumber, dateStr) {
-            if (!printerCharacteristic) {
-                console.warn('No hay impresora conectada');
-                // Opcional: Avisar al usuario discretamente o ignorar
+            if (!printerDevice || !printerEndpoint) {
+                console.warn('No hay impresora USB conectada');
+                // Opcional: intentar reconectar o avisar
                 return;
             }
 
             try {
-                const encoder = new TextEncoder();
+                // Usar ThermalPrinterEncoder para generar comandos ESC/POS
+                const encoder = new ThermalPrinterEncoder({
+                    language: 'esc', // Lenguaje ESC/POS
+                    codepage: 'cp437' // Página de códigos común
+                });
 
-                // Comandos ESC/POS básicos
-                const ESC = '\x1B';
-                const GS = '\x1D';
-                const LF = '\x0A';
+                // Construir ticket
+                encoder
+                    .initialize()
+                    .newline()
+                    .newline()
+                    .newline()
+                    .newline()
+                    .align('center')
+                    .bold(true)
+                    .line('REGISTRO DE COMEDOR')
+                    .bold(false)
+                    .line('--------------------------------')
+                    .align('left')
+                    .line(`Nombre: ${employeeName}`)
+                    .line(`Numero: # ${employeeNumber}`)
+                    .line(`Fecha: ${dateStr}`)
+                    .line('--------------------------------')
+                    .newline()
+                    .newline()
+                    .newline()
+                    .newline()
+                    .newline()
+                    .cut(); // Corte parcial
 
-                // Construcción del ticket
-                let ticket = '';
+                const data = encoder.encode(); // Obtener Uint8Array
 
-                // Reset
-                ticket += ESC + '@';
-
-                // Espacio al inicio (Padding inicial)
-                ticket += '\n\n\n\n';
-
-                // Centrar
-                ticket += ESC + 'a' + '\x01';
-                ticket += 'REGISTRO DE COMEDOR\n';
-                ticket += '--------------------------------\n';
-
-                // Izquierda
-                ticket += ESC + 'a' + '\x00';
-                ticket += 'Nombre: ' + employeeName + '\n';
-                ticket += 'Numero: # ' + employeeNumber + '\n';
-                ticket += 'Fecha: ' + dateStr + '\n';
-                ticket += '--------------------------------\n';
-
-                // Espacio al final (Padding final para corte)
-                ticket += '\n\n\n\n\n\n';
-
-                // Convertir a Uint8Array
-                // Nota: TextEncoder usa UTF-8. Para impresoras antiguas puede requerir CP437, 
-                // pero la mayoría modernas aceptan UTF-8 o ASCII básico.
-                const data = encoder.encode(ticket);
-
-                // Escribir en bloques si es necesario (Bluetooth tiene lÍmite de MTU ~20 bytes a veces, 
-                // pero Chrome lo gestiona o los dispositivos modernos aceptan más)
-                // Para seguridad, escribimos todo junto, si falla, se podría fragmentar.
-                await printerCharacteristic.writeValue(data);
-                console.log('Impresión enviada');
+                // Enviar datos al endpoint USB
+                await printerDevice.transferOut(printerEndpoint.endpointNumber, data);
+                console.log('Impresión enviada por USB');
 
             } catch (error) {
                 console.error('Error imprimiendo ticket:', error);
