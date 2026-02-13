@@ -1757,34 +1757,50 @@
             try {
                 console.log('Solicitando dispositivo USB...');
 
-                // Solicitar dispositivo USB (sin filtros para permitir cualquier impresora)
-                printerDevice = await navigator.usb.requestDevice({
-                    filters: [] // Sin filtros, el usuario selecciona
-                });
+                // 1. Solicitar dispositivo
+                const selectedDevice = await navigator.usb.requestDevice({ filters: [] });
 
+                // 2. Si ya teníamos uno abierto, intentar cerrarlo elegantemente
+                if (printerDevice && printerDevice.opened) {
+                    try { await printerDevice.close(); } catch (e) { console.log('Error cerrando previo:', e); }
+                }
+
+                printerDevice = selectedDevice;
                 console.log('Dispositivo seleccionado:', printerDevice.productName);
 
+                // 3. Abrir conexión (Si ya estaba abierto por otra pestaña, esto fallará, por eso el try/catch)
                 await printerDevice.open();
                 console.log('Dispositivo abierto');
 
-                // Seleccionar configuración (generalmente la primera)
+                // 4. Seleccionar configuración
                 await printerDevice.selectConfiguration(1);
 
-                // Claim interface (asumimos interfaz 0)
-                await printerDevice.claimInterface(0);
+                // 5. Búsqueda dinámica de interfaz y endpoint de impresión
+                let foundInterface = -1;
+                let foundEndpoint = -1;
 
-                // Encontrar endpoint de salida (OUT)
-                const iface = printerDevice.configuration.interfaces[0];
-                const endpoint = iface.alternate.endpoints.find(ep =>
-                    ep.direction === 'out' && ep.type === 'bulk'
-                );
+                for (const iface of printerDevice.configuration.interfaces) {
+                    // Algunas impresoras tienen múltiples interfaces, buscamos la que tenga endpoints BULK OUT
+                    const endpoint = iface.alternate.endpoints.find(ep =>
+                        ep.direction === 'out' && ep.type === 'bulk'
+                    );
 
-                if (!endpoint) {
-                    throw new Error('No se encontró endpoint de salida en el dispositivo');
+                    if (endpoint) {
+                        foundInterface = iface.interfaceNumber;
+                        foundEndpoint = endpoint.endpointNumber;
+                        break;
+                    }
                 }
 
-                printerEndpoint = endpoint;
-                console.log('Endpoint de impresión:', printerEndpoint.endpointNumber);
+                if (foundInterface === -1) {
+                    throw new Error('No se encontró una interfaz de impresión compatible');
+                }
+
+                // 6. Reclamar la interfaz encontrada
+                await printerDevice.claimInterface(foundInterface);
+                printerEndpoint = { endpointNumber: foundEndpoint };
+
+                console.log(`Conectado exitosamente: Interfaz ${foundInterface}, Endpoint ${foundEndpoint}`);
 
                 // Actualizar UI
                 const btnText = document.getElementById('printer-status-text');
@@ -1793,11 +1809,16 @@
                 showFullscreenMessage(true, 'Impresora USB Conectada', `Conectado a ${printerDevice.productName}`);
 
                 // Listener para desconexión
-                printerDevice.addEventListener('disconnect', onPrinterDisconnected);
+                navigator.usb.addEventListener('disconnect', (event) => {
+                    if (event.device === printerDevice) onPrinterDisconnected();
+                });
 
             } catch (error) {
                 console.error('Error conectando impresora USB:', error);
-                alert(`Error al conectar impresora: ${error.message}`);
+                let msg = error.message;
+                if (msg.includes('must be enclosed in a user gesture')) msg = 'Haz clic de nuevo en el botón para conectar';
+                alert(`Error al conectar impresora: ${msg}`);
+                onPrinterDisconnected();
             }
         }
 
