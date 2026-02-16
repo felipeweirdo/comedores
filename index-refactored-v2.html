@@ -124,16 +124,76 @@
         </button>
 
         <!-- Botón Conectar Impresora BT -->
-        <button id="connect-printer-button"
-            class="fixed top-4 right-44 bg-blue-800 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg shadow-lg z-30 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            <span id="printer-status-text">Conectar Impresora</span>
-        </button>
+        <div class="fixed top-4 right-44 z-30">
+            <div class="flex items-center space-x-2">
+                <button id="connect-printer-button"
+                    class="bg-blue-800 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span id="printer-status-text">Conectar Impresora</span>
+                </button>
+                <!--
+                <button onclick="document.getElementById('driver-help-modal').classList.remove('hidden')"
+                    class="text-blue-600 hover:text-blue-800 text-sm underline">
+                    ¿Problemas de conexión?
+                </button>
+                -->
+            </div>
+        </div>
 
+        <!-- Driver Help Modal -->
+        <div id="driver-help-modal"
+            class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 border-b pb-2 mb-4">Instalación de Driver
+                        para Impresora Térmica</h3>
+                    <div class="mt-2 text-left space-y-4">
+                        <div class="bg-yellow-50 p-4 rounded border border-yellow-200">
+                            <p class="text-sm text-yellow-800">
+                                <strong>IMPORTANTE:</strong> Windows requiere cambiar el driver de la impresora a
+                                <strong>WinUSB</strong> para que funcione en el navegador. Esto es normal y seguro.
+                            </p>
+                        </div>
+
+                        <ol class="list-decimal list-inside space-y-2 text-sm text-gray-600">
+                            <li>Descarga la herramienta traductora de drivers <strong>Zadig</strong>.</li>
+                            <li>Conecta tu impresora USB y enciéndela.</li>
+                            <li>Abre Zadig. Si no ves tu impresora, ve al menú <strong>Options</strong> y marca
+                                <strong>List All Devices</strong>.
+                            </li>
+                            <li>Selecciona tu impresora en la lista desplegable.</li>
+                            <li>Asegúrate de que la casilla de la derecha diga <strong>WinUSB</strong> (verás una flecha
+                                verde apuntando hacia ella).</li>
+                            <li>Haz clic en el botón <strong>Replace Driver</strong> o <strong>Install Driver</strong>.
+                            </li>
+                            <li>Espera a que termine y reinicia esta página completa.</li>
+                        </ol>
+
+                        <div class="flex justify-center py-4">
+                            <a href="https://zadig.akeo.ie/" target="_blank"
+                                class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                Descargar Zadig (Sitio Oficial)
+                            </a>
+                        </div>
+                    </div>
+                    <div class="items-center px-4 py-3">
+                        <button id="close-driver-help"
+                            onclick="document.getElementById('driver-help-modal').classList.add('hidden')"
+                            class="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                            Entendido, cerrar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
             <img src="https://i.imgur.com/4SmaZVt.png" crossorigin="anonymous" alt="Logo"
                 class="mx-auto h-36 w-auto mb-6">
@@ -966,6 +1026,8 @@
         const API_URL = isLocal ? 'http://localhost:3000/api' : '/api';
 
         const ADMIN_PASSWORD = '1560';
+        var consecutivo = 0;
+        var reinicio = false;
 
         let appState = {
             comedores: [],
@@ -1092,6 +1154,9 @@
                 // Cargar comedores
                 appState.comedores = await apiRequest('/comedores');
 
+
+
+
                 // Determinar el comedor activo según el rol del usuario
                 if (appState.currentUser) {
                     if (appState.currentUser.role === 'administrador') {
@@ -1136,7 +1201,7 @@
                     if (offlineEmployees && offlineEmployees.length > 0) {
                         appState.empleados = offlineEmployees;
                         console.log('⚠️ Cargados empleados desde Offline DB');
-                        showFullscreenMessage(true, 'Modo Offline', 'Usando datos locales');
+                        //showFullscreenMessage(true, 'Modo Offline', 'Usando datos locales');
                         renderAll();
                     }
                 } catch (dbError) {
@@ -1753,23 +1818,36 @@
         let printerDevice = null;
         let printerEndpoint = null;
 
+
         async function connectPrinter() {
             try {
                 console.log('Solicitando dispositivo USB...');
 
                 // 1. Solicitar dispositivo
                 const selectedDevice = await navigator.usb.requestDevice({ filters: [] });
-
+                printerDevice = selectedDevice;
+                console.log("printerDevice", printerDevice);
                 // 2. Si ya teníamos uno abierto, intentar cerrarlo elegantemente
                 if (printerDevice && printerDevice.opened) {
                     try { await printerDevice.close(); } catch (e) { console.log('Error cerrando previo:', e); }
                 }
 
-                printerDevice = selectedDevice;
+
                 console.log('Dispositivo seleccionado:', printerDevice.productName);
 
-                // 3. Abrir conexión (Si ya estaba abierto por otra pestaña, esto fallará, por eso el try/catch)
-                await printerDevice.open();
+                // 3. Abrir conexión
+                try {
+                    await printerDevice.open();
+                } catch (openError) {
+                    console.error("Error al abrir dispositivo:", openError);
+                    if (openError.name === 'SecurityError') {
+                        throw new Error('⚠️ Acceso Denegado: En Windows, es posible que necesites reemplazar el driver de la impresora por WinUSB (usando Zadig).');
+                    }
+                    if (openError.name === 'NetworkError') {
+                        throw new Error('⚠️ Dispositivo Ocupado: Asegúrate de que no esté siendo usado por otra ventana o programa.');
+                    }
+                    throw new Error(`No se pudo abrir el dispositivo: ${openError.message}`);
+                }
                 console.log('Dispositivo abierto');
 
                 // 4. Seleccionar configuración
@@ -1841,10 +1919,27 @@
             }
 
             try {
+
+                const fechahoy = new Date().toLocaleDateString(); // Obtiene "16/02/2026"
+                let ultimoDia = localStorage.getItem('fecha_consecutivo');
+                let consecutivo = parseInt(localStorage.getItem('consecutivo_impresion') || '0');
+
+                if (ultimoDia !== fechahoy) {
+                    // Es un nuevo día (o primera vez), reiniciar
+                    consecutivo = 1;
+                    localStorage.setItem('fecha_consecutivo', fechahoy);
+                } else {
+                    // Mismo día, incrementar
+                    consecutivo++;
+                }
+                localStorage.setItem('consecutivo_impresion', consecutivo);
+
+
+
                 // Usar ThermalPrinterEncoder para generar comandos ESC/POS
                 const encoder = new ThermalPrinterEncoder({
-                    language: 'esc', // Lenguaje ESC/POS
-                    codepage: 'cp437' // Página de códigos común
+                    language: 'esc-pos', // Lenguaje ESC/POS (Corregido)
+                    codepage: 'cp437'
                 });
 
                 // Construir ticket
@@ -1856,12 +1951,12 @@
                     .newline()
                     .align('center')
                     .bold(true)
-                    .line('REGISTRO DE COMEDOR')
+                    .line('REGISTRO DE COMEDOR #' + String(consecutivo))
                     .bold(false)
                     .line('--------------------------------')
                     .align('left')
                     .line(`Nombre: ${employeeName}`)
-                    .line(`Numero: # ${employeeNumber}`)
+                    .line(`N° Empleado: ${employeeNumber}`)
                     .line(`Fecha: ${dateStr}`)
                     .line('--------------------------------')
                     .newline()
