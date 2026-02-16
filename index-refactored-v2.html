@@ -58,9 +58,9 @@
             <form id="login-form" class="space-y-4">
                 <div>
                     <label for="login-email" class="block text-gray-700 text-sm font-bold mb-2">
-                        Correo Electrónico
+                        Usuario
                     </label>
-                    <input type="email" id="login-email" required
+                    <input type="text" id="login-email" required
                         class="shadow-inner appearance-none border-2 border-gray-200 rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="usuario@ejemplo.com">
                 </div>
@@ -124,7 +124,7 @@
         </button>
 
         <!-- Botón Conectar Impresora BT -->
-        <div class="fixed top-4 right-44 z-30">
+        <div class="fixed top-4 right-48 z-30">
             <div class="flex items-center space-x-2">
                 <button id="connect-printer-button"
                     class="bg-blue-800 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center gap-2">
@@ -1884,6 +1884,12 @@
                 const btnText = document.getElementById('printer-status-text');
                 if (btnText) btnText.textContent = 'Impresora USB Lista';
 
+                botonimpresora = document.getElementById("connect-printer-button");
+                botonimpresora.style.backgroundColor = "green";
+                /*
+                <button id="connect-printer-button"
+                    class="bg-blue-800 hover:bg-blue-900 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center gap-2">
+                */
                 showFullscreenMessage(true, 'Impresora USB Conectada', `Conectado a ${printerDevice.productName}`);
 
                 // Listener para desconexión
