@@ -3224,6 +3224,11 @@
         // ============================================================================
 
         window.addEventListener('keydown', (e) => {
+            //si esta la pantalla del mensaje no permitir escanear ni teclear nada
+            const fullscreenModal = document.getElementById('fullscreen-message-container');
+            if (fullscreenModal && !fullscreenModal.classList.contains('hidden')) {
+                return;
+            }
             // Priority: Modal de Confirmación de Identidad
             const confirmModal = document.getElementById('confirm-identity-modal');
             if (confirmModal && !confirmModal.classList.contains('hidden')) {
@@ -3239,6 +3244,8 @@
                 // Bloquear otras interacciones de teclado si el modal está abierto
                 return;
             }
+
+
 
             // Ignorar si estamos en un input/textarea que NO sea el de búsqueda
             const activeElem = document.activeElement;
